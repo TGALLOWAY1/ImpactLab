@@ -55,59 +55,57 @@ export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
       >
         {/* 4 knobs in 2x2 grid: Attack pair (top), Sustain pair (bottom) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {/* Attack row */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <RotaryKnob
-              value={bandState.attack}
-              min={-100}
-              max={100}
-              label=""
-              color={band.color}
-              size="md"
-              defaultValue={0}
-              onChange={(v) => setBandParam('attack', v)}
-            />
-            <RotaryKnob
-              value={bandState.attackTime || 50}
-              min={0}
-              max={100}
-              label=""
-              color={band.color}
-              size="md"
-              defaultValue={50}
-              onChange={(v) => setBandParam('attackTime', v)}
-            />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+          {/* Attack group */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <span style={knobGroupLabel}>Attack</span>
-            <span style={knobGroupLabel}>Sustain</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <RotaryKnob
+                value={bandState.attack}
+                min={-100}
+                max={100}
+                label=""
+                color={band.color}
+                size="md"
+                defaultValue={0}
+                onChange={(v) => setBandParam('attack', v)}
+              />
+              <RotaryKnob
+                value={bandState.attackTime ?? 50}
+                min={0}
+                max={100}
+                label=""
+                color={band.color}
+                size="md"
+                defaultValue={50}
+                onChange={(v) => setBandParam('attackTime', v)}
+              />
+            </div>
           </div>
-          {/* Sustain row */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <RotaryKnob
-              value={bandState.sustain}
-              min={-100}
-              max={100}
-              label=""
-              color={band.color}
-              size="md"
-              defaultValue={0}
-              onChange={(v) => setBandParam('sustain', v)}
-            />
-            <RotaryKnob
-              value={bandState.sustainTime || 50}
-              min={0}
-              max={100}
-              label=""
-              color={band.color}
-              size="md"
-              defaultValue={50}
-              onChange={(v) => setBandParam('sustainTime', v)}
-            />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-            <span style={knobGroupLabel}>Attack</span>
+          {/* Sustain group */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <span style={knobGroupLabel}>Sustain</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <RotaryKnob
+                value={bandState.sustain}
+                min={-100}
+                max={100}
+                label=""
+                color={band.color}
+                size="md"
+                defaultValue={0}
+                onChange={(v) => setBandParam('sustain', v)}
+              />
+              <RotaryKnob
+                value={bandState.sustainTime ?? 50}
+                min={0}
+                max={100}
+                label=""
+                color={band.color}
+                size="md"
+                defaultValue={50}
+                onChange={(v) => setBandParam('sustainTime', v)}
+              />
+            </div>
           </div>
         </div>
 

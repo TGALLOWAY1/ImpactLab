@@ -12,6 +12,8 @@ export default function WaveformCanvas({ band, bandState }) {
     band.id,
     bandState.attack,
     bandState.sustain,
+    bandState.attackTime,
+    bandState.sustainTime,
   );
 
   useEffect(() => {
@@ -28,6 +30,15 @@ export default function WaveformCanvas({ band, bandState }) {
       ctx.scale(dpr, dpr);
     };
     resize();
+
+    const ro = new ResizeObserver(() => {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+    });
+    ro.observe(canvas);
 
     const draw = () => {
       const rect = canvas.getBoundingClientRect();
@@ -146,6 +157,7 @@ export default function WaveformCanvas({ band, bandState }) {
     animFrameRef.current = requestAnimationFrame(draw);
 
     return () => {
+      ro.disconnect();
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }

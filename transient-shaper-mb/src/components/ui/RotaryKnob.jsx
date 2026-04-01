@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import useKnobDrag from '../../hooks/useKnobDrag';
 
 // Phase 5.1 — SVG rotary knob with arc indicator, drag interaction, bipolar support
 export default function RotaryKnob({ value, min, max, label, color = '#fff', size = 'md', onChange, defaultValue }) {
+  const gradId = useId();
   const [hovering, setHovering] = useState(false);
   const diameters = { sm: 28, md: 36, lg: 48 };
   const d = diameters[size];
@@ -97,12 +98,12 @@ export default function RotaryKnob({ value, min, max, label, color = '#fff', siz
       >
         {/* Knob body with radial gradient */}
         <defs>
-          <radialGradient id={`knob-grad-${label}`} cx="40%" cy="35%">
+          <radialGradient id={gradId} cx="40%" cy="35%">
             <stop offset="0%" stopColor="#3A3A44" />
             <stop offset="100%" stopColor="#1E1E24" />
           </radialGradient>
         </defs>
-        <circle cx={cx} cy={cy} r={r - 2} fill={`url(#knob-grad-${label})`} />
+        <circle cx={cx} cy={cy} r={r - 2} fill={`url(#${gradId})`} />
 
         {/* Track arc (background) */}
         <path d={trackPath} fill="none" stroke="#333" strokeWidth={strokeWidth} strokeLinecap="round" />

@@ -1,6 +1,6 @@
 import React, { useReducer } from 'react';
 import { BANDS } from './constants/bands';
-import { createInitialState } from './constants/defaults';
+import { createInitialState, DEFAULT_BAND_STATE } from './constants/defaults';
 import { colors, sizes, typography } from './styles/theme';
 import Header from './components/Header';
 import GlobalControls from './components/GlobalControls';
@@ -70,7 +70,7 @@ function reducer(state, action) {
         ...state,
         bands: {
           ...state.bands,
-          [action.bandId]: { attack: 0, attackTime: 50, sustain: 0, sustainTime: 50, outputGain: 0, solo: false, bypass: false },
+          [action.bandId]: { ...DEFAULT_BAND_STATE },
         },
       };
     default:
