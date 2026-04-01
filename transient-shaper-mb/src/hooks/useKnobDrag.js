@@ -4,11 +4,13 @@ import { useCallback, useRef } from 'react';
 export default function useKnobDrag({ value, min, max, onChange, sensitivity = 0.5 }) {
   const startY = useRef(null);
   const startValue = useRef(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   const onMouseDown = useCallback(
     (e) => {
       startY.current = e.clientY;
-      startValue.current = value;
+      startValue.current = valueRef.current;
 
       const onMouseMove = (e) => {
         const delta = (startY.current - e.clientY) * sensitivity;
@@ -24,7 +26,7 @@ export default function useKnobDrag({ value, min, max, onChange, sensitivity = 0
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     },
-    [value, min, max, onChange, sensitivity],
+    [min, max, onChange, sensitivity],
   );
 
   const onDoubleClick = useCallback(() => {

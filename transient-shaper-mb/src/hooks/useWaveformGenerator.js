@@ -10,7 +10,7 @@ const BAND_DENSITY = {
 };
 
 // Generates synthetic waveform data for the prototype
-export default function useWaveformGenerator(bandId, attackAmount, sustainAmount, sampleCount = 512) {
+export default function useWaveformGenerator(bandId, attackAmount, sustainAmount, attackTime = 50, sustainTime = 50, sampleCount = 512) {
   return useMemo(() => {
     const density = BAND_DENSITY[bandId] || 1.0;
     const samples = new Float32Array(sampleCount);
@@ -19,6 +19,10 @@ export default function useWaveformGenerator(bandId, attackAmount, sustainAmount
     const attackMul = 1 + attackAmount / 100; // 0 to 2
     const sustainMul = 1 + sustainAmount / 100;
 
+    // Time params modulate envelope durations (0-100 → phase thresholds)
+    const attackPhase = 0.05 + (attackTime / 100) * 0.2;   // 0.05 to 0.25
+    const sustainPhase = 0.3 + (sustainTime / 100) * 0.5;  // 0.3 to 0.8
+
     // Generate a repeating transient pattern
     const patternLength = Math.floor(60 / density);
 
@@ -26,19 +30,19 @@ export default function useWaveformGenerator(bandId, attackAmount, sustainAmount
       const pos = i % patternLength;
       const phase = pos / patternLength;
 
-      // Transient spike (first 15% of pattern)
+      // Transient spike (attack phase of pattern)
       let value;
-      if (phase < 0.15) {
-        const t = phase / 0.15;
+      if (phase < attackPhase) {
+        const t = phase / attackPhase;
         // Sharp attack peak that decays quickly
         value = Math.exp(-t * 3) * attackMul;
       }
-      // Sustain tail (15% to 70%)
-      else if (phase < 0.7) {
-        const t = (phase - 0.15) / 0.55;
+      // Sustain tail (attack end to sustain phase)
+      else if (phase < sustainPhase) {
+        const t = (phase - attackPhase) / (sustainPhase - attackPhase);
         value = 0.4 * sustainMul * Math.exp(-t * 2);
       }
-      // Quiet gap (70% to 100%)
+      // Quiet gap (sustain end to 100%)
       else {
         value = 0.05;
       }
@@ -54,5 +58,5 @@ export default function useWaveformGenerator(bandId, attackAmount, sustainAmount
     }
 
     return samples;
-  }, [bandId, attackAmount, sustainAmount, sampleCount]);
+  }, [bandId, attackAmount, sustainAmount, attackTime, sustainTime, sampleCount]);
 }

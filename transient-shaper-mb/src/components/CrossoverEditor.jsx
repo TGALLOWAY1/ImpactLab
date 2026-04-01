@@ -1,10 +1,11 @@
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useState, useLayoutEffect } from 'react';
 import { BANDS } from '../constants/bands';
 
 // Phase 5.5 — Horizontal log-frequency bar with 4 draggable crossover points
 const MIN_FREQ = 20;
 const MAX_FREQ = 20000;
 const MIN_OCTAVE_SPACING = 0.5; // Minimum spacing between crossover points
+const REGION_COLORS = BANDS.map(b => b.color);
 
 function freqToX(freq, width) {
   const logMin = Math.log10(MIN_FREQ);
@@ -23,6 +24,19 @@ export default function CrossoverEditor({ freqs, bands, onChange }) {
   const barRef = useRef(null);
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [draggingIdx, setDraggingIdx] = useState(null);
+  const [barWidth, setBarWidth] = useState(200);
+
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setBarWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const handleMouseDown = useCallback((idx, e) => {
     e.preventDefault();
@@ -65,10 +79,6 @@ export default function CrossoverEditor({ freqs, bands, onChange }) {
     document.addEventListener('mouseup', onMouseUp);
   }, [freqs, onChange]);
 
-  const barWidth = barRef.current?.getBoundingClientRect().width || 200;
-
-  // Band region colors (5 bands, 4 crossover points)
-  const regionColors = BANDS.map(b => b.color);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
@@ -88,7 +98,7 @@ export default function CrossoverEditor({ freqs, bands, onChange }) {
         }}
       >
         {/* Colored band regions */}
-        {regionColors.map((color, i) => {
+        {REGION_COLORS.map((color, i) => {
           const leftFreq = i === 0 ? MIN_FREQ : freqs[i - 1];
           const rightFreq = i === freqs.length ? MAX_FREQ : (i < freqs.length ? freqs[i] : MAX_FREQ);
           const left = freqToX(leftFreq, barWidth);
