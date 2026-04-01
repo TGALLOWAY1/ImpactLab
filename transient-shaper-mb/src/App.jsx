@@ -70,7 +70,7 @@ function reducer(state, action) {
         ...state,
         bands: {
           ...state.bands,
-          [action.bandId]: { attack: 0, sustain: 0, outputGain: 0, solo: false, bypass: false },
+          [action.bandId]: { attack: 0, attackTime: 50, sustain: 0, sustainTime: 50, outputGain: 0, solo: false, bypass: false },
         },
       };
     default:
