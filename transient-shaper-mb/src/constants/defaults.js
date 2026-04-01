@@ -3,7 +3,9 @@ import { BANDS } from './bands';
 // Phase 0.2 — Per-band state shape
 export const DEFAULT_BAND_STATE = {
   attack: 0,        // -100 to +100 (percentage, bipolar)
+  attackTime: 50,   // 0-100 (maps to envelope follower attack time)
   sustain: 0,       // -100 to +100
+  sustainTime: 50,  // 0-100 (maps to envelope follower release time)
   outputGain: 0,    // -30 to +6 dB
   solo: false,
   bypass: false,

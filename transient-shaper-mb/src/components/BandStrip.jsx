@@ -1,17 +1,27 @@
 import React from 'react';
 import { colors, sizes } from '../styles/theme';
+import { SET_BAND_PARAM, TOGGLE_SOLO, TOGGLE_BYPASS } from '../App';
+import RotaryKnob from './ui/RotaryKnob';
+import VerticalSlider from './ui/VerticalSlider';
+import ToggleButton from './ui/ToggleButton';
+import WaveformCanvas from './WaveformCanvas';
 
 // Phase 3 — Single band row: controls panel + waveform display
 export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
-  // TODO: Implement band controls (knobs, slider, solo/bypass) and waveform area
+  const setBandParam = (param, value) =>
+    dispatch({ type: SET_BAND_PARAM, bandId: band.id, param, value });
+
   return (
     <div
       style={{
-        height: sizes.bandStripHeight,
+        flex: 1,
+        minHeight: 0,
         display: 'flex',
         border: `1px solid ${band.colorDim}`,
         opacity: bandState.bypass ? 0.4 : isDimmed ? 0.6 : 1,
         position: 'relative',
+        transition: 'opacity 0.2s ease',
+        boxShadow: !bandState.bypass && !isDimmed ? `inset 0 0 12px ${band.color}15` : 'none',
       }}
     >
       {/* Band label badge */}
@@ -26,20 +36,134 @@ export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
           fontWeight: 'bold',
           textTransform: 'uppercase',
           padding: '2px 8px',
+          zIndex: 1,
         }}
       >
         {band.label}
       </div>
 
       {/* Controls panel */}
-      <div style={{ width: sizes.controlsPanelWidth, flexShrink: 0 }}>
-        {/* Placeholder — implement in Phase 3 */}
+      <div
+        style={{
+          width: sizes.controlsPanelWidth,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '16px 12px 8px 12px',
+          gap: 8,
+        }}
+      >
+        {/* 4 knobs in 2x2 grid: Attack pair (top), Sustain pair (bottom) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* Attack row */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <RotaryKnob
+              value={bandState.attack}
+              min={-100}
+              max={100}
+              label=""
+              color={band.color}
+              size="md"
+              defaultValue={0}
+              onChange={(v) => setBandParam('attack', v)}
+            />
+            <RotaryKnob
+              value={bandState.attackTime || 50}
+              min={0}
+              max={100}
+              label=""
+              color={band.color}
+              size="md"
+              defaultValue={50}
+              onChange={(v) => setBandParam('attackTime', v)}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+            <span style={knobGroupLabel}>Attack</span>
+            <span style={knobGroupLabel}>Sustain</span>
+          </div>
+          {/* Sustain row */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <RotaryKnob
+              value={bandState.sustain}
+              min={-100}
+              max={100}
+              label=""
+              color={band.color}
+              size="md"
+              defaultValue={0}
+              onChange={(v) => setBandParam('sustain', v)}
+            />
+            <RotaryKnob
+              value={bandState.sustainTime || 50}
+              min={0}
+              max={100}
+              label=""
+              color={band.color}
+              size="md"
+              defaultValue={50}
+              onChange={(v) => setBandParam('sustainTime', v)}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+            <span style={knobGroupLabel}>Attack</span>
+            <span style={knobGroupLabel}>Sustain</span>
+          </div>
+        </div>
+
+        {/* Output Gain section */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+          <RotaryKnob
+            value={bandState.outputGain}
+            min={-30}
+            max={6}
+            label=""
+            color={band.color}
+            size="md"
+            defaultValue={0}
+            onChange={(v) => setBandParam('outputGain', v)}
+          />
+          <VerticalSlider
+            value={bandState.outputGain}
+            min={-30}
+            max={6}
+            label="Output Gain"
+            color={band.color}
+            onChange={(v) => setBandParam('outputGain', v)}
+          />
+        </div>
+
+        {/* Solo / Bypass buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 4 }}>
+          <ToggleButton
+            active={bandState.solo}
+            label="Solo"
+            color={band.color}
+            onClick={() => dispatch({ type: TOGGLE_SOLO, bandId: band.id })}
+            style={{ fontSize: 8, padding: '3px 8px' }}
+          />
+          <ToggleButton
+            active={bandState.bypass}
+            label="Bypass"
+            color="#888"
+            onClick={() => dispatch({ type: TOGGLE_BYPASS, bandId: band.id })}
+            style={{ fontSize: 8, padding: '3px 8px' }}
+          />
+        </div>
       </div>
 
       {/* Waveform area */}
       <div style={{ flex: 1, backgroundColor: colors.waveformBg }}>
-        {/* Placeholder — implement in Phase 4 */}
+        <WaveformCanvas band={band} bandState={bandState} />
       </div>
     </div>
   );
 }
+
+const knobGroupLabel = {
+  fontSize: 8,
+  textTransform: 'uppercase',
+  color: '#666',
+  letterSpacing: '1px',
+  textAlign: 'center',
+};
