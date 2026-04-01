@@ -1,8 +1,7 @@
 import React from 'react';
 
-// Phase 5.3 — Toggle button with active/inactive states
-export default function ToggleButton({ active, label, color, onClick }) {
-  // TODO: Implement styled toggle with active glow (Phase 5.3)
+// Phase 5.3 — Toggle button with active glow and styling
+export default function ToggleButton({ active, label, color = '#fff', onClick, style }) {
   return (
     <button
       onClick={onClick}
@@ -13,9 +12,15 @@ export default function ToggleButton({ active, label, color, onClick }) {
         borderRadius: 3,
         padding: '4px 10px',
         fontSize: 9,
+        fontWeight: active ? 'bold' : 'normal',
         textTransform: 'uppercase',
         letterSpacing: '1px',
         cursor: 'pointer',
+        boxShadow: active ? `0 0 8px ${color}44` : 'none',
+        transition: 'all 0.15s ease',
+        outline: 'none',
+        fontFamily: 'inherit',
+        ...style,
       }}
     >
       {label}
