@@ -5,6 +5,7 @@ import RotaryKnob from './ui/RotaryKnob';
 import SpeedSelector from './ui/SpeedSelector';
 import ToggleButton from './ui/ToggleButton';
 import CrossoverEditor from './CrossoverEditor';
+import DetectionMethodSelector from './DetectionMethodSelector';
 import { BANDS } from '../constants/bands';
 import { PlaceholderWrap } from './ui/PlaceholderBadge';
 
@@ -50,6 +51,12 @@ export default function GlobalControls({ state, dispatch }) {
           onChange={(v) => setParam('detectionSpeed', v)}
         />
       </PlaceholderWrap>
+
+      {/* Detection Method */}
+      <DetectionMethodSelector
+        value={state.detectionMethod || 'dual-envelope'}
+        onChange={(v) => setParam('detectionMethod', v)}
+      />
 
       {/* Transient Mode */}
       <PlaceholderWrap reason="NO DSP" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>

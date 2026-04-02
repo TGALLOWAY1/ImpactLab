@@ -5,6 +5,9 @@ import { colors, sizes, typography } from './styles/theme';
 import Header from './components/Header';
 import GlobalControls from './components/GlobalControls';
 import BandStripList from './components/BandStripList';
+import AudioSourceControls from './components/AudioSourceControls';
+import useAudioEngine from './hooks/useAudioEngine';
+import useAudioSource from './hooks/useAudioSource';
 
 // Action types
 export const SET_BAND_PARAM = 'SET_BAND_PARAM';
@@ -83,6 +86,10 @@ export default function App() {
 
   const anySoloed = BANDS.some((b) => state.bands[b.id].solo);
 
+  // Audio engine integration
+  const engine = useAudioEngine(state);
+  const source = useAudioSource(engine.audioCtxRef, engine.connectSource, engine.disconnectSource);
+
   return (
     <div
       style={{
@@ -96,6 +103,16 @@ export default function App() {
         flexDirection: 'column',
       }}
     >
+      <AudioSourceControls
+        isInitialized={engine.isInitialized}
+        isPlaying={source.isPlaying}
+        isLoaded={source.isLoaded}
+        fileName={source.fileName}
+        onInitialize={engine.initialize}
+        onLoadFile={source.loadFile}
+        onPlay={source.play}
+        onStop={source.stop}
+      />
       <Header />
       <GlobalControls state={state.global} dispatch={dispatch} />
       <BandStripList
@@ -103,6 +120,8 @@ export default function App() {
         bandStates={state.bands}
         anySoloed={anySoloed}
         dispatch={dispatch}
+        getVizData={engine.isRunning ? engine.getVizData : null}
+        vizWritePositionsRef={engine.vizWritePositionsRef}
       />
     </div>
   );

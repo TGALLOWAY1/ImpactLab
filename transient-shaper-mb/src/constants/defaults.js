@@ -23,6 +23,7 @@ export const DEFAULT_GLOBAL_STATE = {
   lookahead: false,
   delta: false,
   crossoverFreqs: [80, 500, 2500, 8000], // Hz — 4 points for 5 bands
+  detectionMethod: "dual-envelope",       // "dual-envelope" | "peak-rms" | "derivative" | "energy-flux"
 };
 
 // Initial state combining bands + globals

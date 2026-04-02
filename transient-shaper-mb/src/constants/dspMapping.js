@@ -25,3 +25,18 @@ export const DETECTION_SPEED_PRESETS = {
   medium: { attackMultiplier: 1.0, releaseMultiplier: 1.0 },
   fast:   { attackMultiplier: 0.5, releaseMultiplier: 0.5 },
 };
+
+// Phase D7 — Detection method identifiers and display labels
+export const DETECTION_METHODS = [
+  'dual-envelope',
+  'peak-rms',
+  'derivative',
+  'energy-flux',
+];
+
+export const DETECTION_METHOD_LABELS = {
+  'dual-envelope': 'Dual Envelope',
+  'peak-rms':      'Peak vs RMS',
+  'derivative':    'Derivative',
+  'energy-flux':   'Energy Flux',
+};
