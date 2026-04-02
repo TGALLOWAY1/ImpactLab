@@ -5,6 +5,7 @@ import RotaryKnob from './ui/RotaryKnob';
 import VerticalSlider from './ui/VerticalSlider';
 import ToggleButton from './ui/ToggleButton';
 import WaveformCanvas from './WaveformCanvas';
+import { PlaceholderWrap } from './ui/PlaceholderBadge';
 
 // Phase 3 — Single band row: controls panel + waveform display
 export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
@@ -59,68 +60,70 @@ export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <span style={knobGroupLabel}>Attack</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <RotaryKnob
-                value={bandState.attack}
-                min={-100}
-                max={100}
-                label=""
-                color={band.color}
-                size="md"
-                defaultValue={0}
-                onChange={(v) => setBandParam('attack', v)}
-              />
-              <RotaryKnob
-                value={bandState.attackTime ?? 50}
-                min={0}
-                max={100}
-                label=""
-                color={band.color}
-                size="md"
-                defaultValue={50}
-                onChange={(v) => setBandParam('attackTime', v)}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <RotaryKnob
+                  value={bandState.attack}
+                  min={-100}
+                  max={100}
+                  label=""
+                  color={band.color}
+                  size="md"
+                  defaultValue={0}
+                  onChange={(v) => setBandParam('attack', v)}
+                />
+                <span style={knobSubLabel}>Amount</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <RotaryKnob
+                  value={bandState.attackTime ?? 50}
+                  min={0}
+                  max={100}
+                  label=""
+                  color={band.color}
+                  size="md"
+                  defaultValue={50}
+                  onChange={(v) => setBandParam('attackTime', v)}
+                />
+                <span style={knobSubLabel}>Time</span>
+              </div>
             </div>
           </div>
           {/* Sustain group */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <span style={knobGroupLabel}>Sustain</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <RotaryKnob
-                value={bandState.sustain}
-                min={-100}
-                max={100}
-                label=""
-                color={band.color}
-                size="md"
-                defaultValue={0}
-                onChange={(v) => setBandParam('sustain', v)}
-              />
-              <RotaryKnob
-                value={bandState.sustainTime ?? 50}
-                min={0}
-                max={100}
-                label=""
-                color={band.color}
-                size="md"
-                defaultValue={50}
-                onChange={(v) => setBandParam('sustainTime', v)}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <RotaryKnob
+                  value={bandState.sustain}
+                  min={-100}
+                  max={100}
+                  label=""
+                  color={band.color}
+                  size="md"
+                  defaultValue={0}
+                  onChange={(v) => setBandParam('sustain', v)}
+                />
+                <span style={knobSubLabel}>Amount</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <RotaryKnob
+                  value={bandState.sustainTime ?? 50}
+                  min={0}
+                  max={100}
+                  label=""
+                  color={band.color}
+                  size="md"
+                  defaultValue={50}
+                  onChange={(v) => setBandParam('sustainTime', v)}
+                />
+                <span style={knobSubLabel}>Time</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Output Gain section */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginLeft: 4 }}>
-          <RotaryKnob
-            value={bandState.outputGain}
-            min={-30}
-            max={6}
-            label=""
-            color={band.color}
-            size="md"
-            defaultValue={0}
-            onChange={(v) => setBandParam('outputGain', v)}
-          />
+        <PlaceholderWrap reason="NO DSP" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}>
           <VerticalSlider
             value={bandState.outputGain}
             min={-30}
@@ -129,7 +132,7 @@ export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
             color={band.color}
             onChange={(v) => setBandParam('outputGain', v)}
           />
-        </div>
+        </PlaceholderWrap>
 
         {/* Solo / Bypass buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 4 }}>
@@ -164,4 +167,12 @@ const knobGroupLabel = {
   color: '#666',
   letterSpacing: '1px',
   textAlign: 'center',
+};
+
+const knobSubLabel = {
+  fontSize: 7,
+  textTransform: 'uppercase',
+  color: '#555',
+  letterSpacing: '0.5px',
+  marginTop: 1,
 };

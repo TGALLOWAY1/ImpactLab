@@ -132,6 +132,14 @@ export default function WaveformCanvas({ band, bandState }) {
       drawDeltaSection(deltaSection2Start, deltaSection2End);
       ctx.restore();
 
+      // Red placeholder labels for hardcoded delta sections
+      ctx.font = '8px sans-serif';
+      ctx.fillStyle = '#E8443A';
+      ctx.globalAlpha = 0.9;
+      ctx.fillText('PLACEHOLDER', deltaSection1Start + 2, 10);
+      ctx.fillText('PLACEHOLDER', deltaSection2Start + 2, 10);
+      ctx.globalAlpha = 1;
+
       // Playhead cursor (thin red vertical line at ~75%)
       const playheadX = w * 0.75;
       ctx.beginPath();
@@ -141,6 +149,11 @@ export default function WaveformCanvas({ band, bandState }) {
       ctx.moveTo(playheadX, 0);
       ctx.lineTo(playheadX, h);
       ctx.stroke();
+      // Red label for static playhead
+      ctx.fillStyle = '#E8443A';
+      ctx.font = '7px sans-serif';
+      ctx.globalAlpha = 0.9;
+      ctx.fillText('STATIC', playheadX + 3, 10);
       ctx.globalAlpha = 1;
 
       // Center line
