@@ -8,7 +8,7 @@ import WaveformCanvas from './WaveformCanvas';
 import { PlaceholderWrap } from './ui/PlaceholderBadge';
 
 // Phase 3 — Single band row: controls panel + waveform display
-export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
+export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispatch, getVizData, vizWritePositionsRef }) {
   const setBandParam = (param, value) =>
     dispatch({ type: SET_BAND_PARAM, bandId: band.id, param, value });
 
@@ -155,7 +155,13 @@ export default function BandStrip({ band, bandState, isDimmed, dispatch }) {
 
       {/* Waveform area */}
       <div style={{ flex: 1, backgroundColor: colors.waveformBg }}>
-        <WaveformCanvas band={band} bandState={bandState} />
+        <WaveformCanvas
+          band={band}
+          bandIndex={bandIndex}
+          bandState={bandState}
+          getVizData={getVizData}
+          vizWritePositionsRef={vizWritePositionsRef}
+        />
       </div>
     </div>
   );
