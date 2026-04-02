@@ -2,7 +2,8 @@
 
 A **multiband transient shaper** audio plugin prototype — split your signal into 5 frequency bands and sculpt the attack and sustain of each independently.
 
-![Transient Shaper MB UI](transient-shaper-mb/screenshot.png)
+<img width="1165" height="805" alt="image" src="https://github.com/user-attachments/assets/7d94249d-5bd7-4386-a50c-e22e43d5f89c" />
+
 
 ## What Is Transient Shaping?
 
