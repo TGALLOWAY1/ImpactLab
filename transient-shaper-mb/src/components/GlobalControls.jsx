@@ -6,6 +6,7 @@ import SpeedSelector from './ui/SpeedSelector';
 import ToggleButton from './ui/ToggleButton';
 import CrossoverEditor from './CrossoverEditor';
 import { BANDS } from '../constants/bands';
+import { PlaceholderWrap } from './ui/PlaceholderBadge';
 
 // Phase 2 — Global controls bar
 export default function GlobalControls({ state, dispatch }) {
@@ -29,25 +30,29 @@ export default function GlobalControls({ state, dispatch }) {
       }}
     >
       {/* Input Gain */}
-      <RotaryKnob
-        value={state.inputGain}
-        min={-30}
-        max={12}
-        label="Input Gain"
-        color="#fff"
-        size="sm"
-        defaultValue={0}
-        onChange={(v) => setParam('inputGain', v)}
-      />
+      <PlaceholderWrap reason="NO DSP">
+        <RotaryKnob
+          value={state.inputGain}
+          min={-30}
+          max={12}
+          label="Input Gain"
+          color="#fff"
+          size="sm"
+          defaultValue={0}
+          onChange={(v) => setParam('inputGain', v)}
+        />
+      </PlaceholderWrap>
 
       {/* Detection Speed */}
-      <SpeedSelector
-        value={state.detectionSpeed}
-        onChange={(v) => setParam('detectionSpeed', v)}
-      />
+      <PlaceholderWrap reason="NO DSP">
+        <SpeedSelector
+          value={state.detectionSpeed}
+          onChange={(v) => setParam('detectionSpeed', v)}
+        />
+      </PlaceholderWrap>
 
       {/* Transient Mode */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <PlaceholderWrap reason="NO DSP" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
         <span style={{ fontSize: 8, textTransform: 'uppercase', color: '#666', letterSpacing: '1px' }}>
           Transient Mode
         </span>
@@ -74,7 +79,7 @@ export default function GlobalControls({ state, dispatch }) {
             </button>
           ))}
         </div>
-      </div>
+      </PlaceholderWrap>
 
       {/* Multiband Link */}
       <label
@@ -99,8 +104,8 @@ export default function GlobalControls({ state, dispatch }) {
         />
       </label>
 
-      {/* Mix knob (larger) with Dry/Wet labels */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      {/* Mix knob (larger, centered) with Dry/Wet labels */}
+      <PlaceholderWrap reason="NO DSP" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <span style={{ fontSize: 8, color: '#666', textTransform: 'uppercase' }}>Dry</span>
         <RotaryKnob
           value={state.mix}
@@ -113,31 +118,19 @@ export default function GlobalControls({ state, dispatch }) {
           onChange={(v) => setParam('mix', v)}
         />
         <span style={{ fontSize: 8, color: '#666', textTransform: 'uppercase' }}>Wet</span>
-      </div>
-
-      {/* Output Gain */}
-      <RotaryKnob
-        value={state.outputGain}
-        min={-30}
-        max={12}
-        label="Output Gain"
-        color="#fff"
-        size="sm"
-        defaultValue={0}
-        onChange={(v) => setParam('outputGain', v)}
-      />
+      </PlaceholderWrap>
 
       {/* Crossover Frequency Editor */}
-      <div style={{ flex: 1, maxWidth: 200, minWidth: 120 }}>
+      <PlaceholderWrap reason="NO DSP" style={{ flex: 1, maxWidth: 200, minWidth: 120 }}>
         <CrossoverEditor
           freqs={state.crossoverFreqs}
           bands={BANDS}
           onChange={(freqs) => setParam('crossoverFreqs', freqs)}
         />
-      </div>
+      </PlaceholderWrap>
 
       {/* Delta label */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <PlaceholderWrap reason="NO DSP" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
         <span style={{ fontSize: 7, color: '#555', textAlign: 'center', lineHeight: 1.2 }}>
           (hear only<br />processed signal)
         </span>
@@ -147,23 +140,27 @@ export default function GlobalControls({ state, dispatch }) {
           color="#D4A847"
           onClick={() => setParam('delta', !state.delta)}
         />
-      </div>
+      </PlaceholderWrap>
 
       {/* Soft Clip */}
-      <ToggleButton
-        active={state.softClip}
-        label="Soft Clip"
-        color="#5ECA89"
-        onClick={() => setParam('softClip', !state.softClip)}
-      />
+      <PlaceholderWrap reason="NO DSP">
+        <ToggleButton
+          active={state.softClip}
+          label="Soft Clip"
+          color="#5ECA89"
+          onClick={() => setParam('softClip', !state.softClip)}
+        />
+      </PlaceholderWrap>
 
       {/* Lookahead */}
-      <ToggleButton
-        active={state.lookahead}
-        label="Lookahead"
-        color="#5BC0EB"
-        onClick={() => setParam('lookahead', !state.lookahead)}
-      />
+      <PlaceholderWrap reason="NO DSP">
+        <ToggleButton
+          active={state.lookahead}
+          label="Lookahead"
+          color="#5BC0EB"
+          onClick={() => setParam('lookahead', !state.lookahead)}
+        />
+      </PlaceholderWrap>
     </div>
   );
 }

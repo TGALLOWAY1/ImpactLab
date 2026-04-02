@@ -1,5 +1,6 @@
 import React from 'react';
 import { colors, sizes, typography } from '../styles/theme';
+import { PlaceholderWrap } from './ui/PlaceholderBadge';
 
 // Phase 1 — Top bar: plugin title, preset browser, sub-title
 export default function Header() {
@@ -43,7 +44,7 @@ export default function Header() {
       </div>
 
       {/* Center: Preset browser */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <PlaceholderWrap reason="NO HANDLER" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {/* Left arrow */}
         <button style={arrowStyle}>◀</button>
 
@@ -66,7 +67,7 @@ export default function Header() {
 
         {/* Right arrow */}
         <button style={arrowStyle}>▶</button>
-      </div>
+      </PlaceholderWrap>
 
       {/* Right: Sub-title + menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -80,22 +81,26 @@ export default function Header() {
         </span>
 
         {/* Star icon */}
-        <span style={{ fontSize: 16, color: '#666', cursor: 'pointer' }}>✦</span>
+        <PlaceholderWrap reason="NO HANDLER" style={{ display: 'inline-flex' }}>
+          <span style={{ fontSize: 16, color: '#666', cursor: 'pointer' }}>✦</span>
+        </PlaceholderWrap>
 
         {/* Hamburger menu */}
-        <button style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: 4,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 3,
-        }}>
-          {[0, 1, 2].map((i) => (
-            <div key={i} style={{ width: 16, height: 1.5, backgroundColor: '#888', borderRadius: 1 }} />
-          ))}
-        </button>
+        <PlaceholderWrap reason="NO HANDLER" style={{ display: 'inline-flex' }}>
+          <button style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 3,
+          }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ width: 16, height: 1.5, backgroundColor: '#888', borderRadius: 1 }} />
+            ))}
+          </button>
+        </PlaceholderWrap>
       </div>
     </div>
   );
