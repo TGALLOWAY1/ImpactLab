@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
-const VIZ_SAMPLES_PER_BAND = 512;
+const VIZ_SAMPLES_PER_BAND = 1024; // Downsampled peaks, not raw samples
 const NUM_BANDS = 5;
 // Per band: 512 samples + 1 write position + 1 reserved = 514 floats
 const FLOATS_PER_BAND = VIZ_SAMPLES_PER_BAND + 2;

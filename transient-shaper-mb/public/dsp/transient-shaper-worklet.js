@@ -632,11 +632,17 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     this.bypassState = [false, false, false, false, false];
 
     // Viz data: SharedArrayBuffer or postMessage fallback
+    // Downsampled for longer time window (~6 seconds visible)
     this.vizSab = opts.vizSharedBuffer || null;
     this.vizView = this.vizSab ? new Float32Array(this.vizSab) : null;
     this.vizWritePos = new Int32Array(5).fill(0); // per-band write position
-    this.vizSamplesPerBand = 512;
+    this.vizSamplesPerBand = 1024;
     this.vizBlockCounter = 0;
+    
+    // Downsampling: accumulate peaks over N samples before writing
+    this.vizDownsampleFactor = 256; // ~6 seconds visible at 44.1kHz with 1024 samples
+    this.vizPeakAccum = new Float32Array(5).fill(0); // peak accumulator per band
+    this.vizSampleCount = new Int32Array(5).fill(0); // samples since last viz write
 
     // Apply initial params
     this._applyParams(this.params);
@@ -832,14 +838,26 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
           wetR += this.bandProcessorsR[i].processSample(bR);
         }
 
-        // Write viz data for this band
+        // Accumulate peak for downsampled viz data
         if (this.vizView) {
-          const bandOffset = i * (this.vizSamplesPerBand + 2);
-          const wp = this.vizWritePos[i];
-          this.vizView[bandOffset + wp] = bL; // pre-processed band signal
-          this.vizWritePos[i] = (wp + 1) % this.vizSamplesPerBand;
-          // Write position indicator at end of band's viz block
-          this.vizView[bandOffset + this.vizSamplesPerBand] = this.vizWritePos[i];
+          const absSample = Math.abs(bL);
+          if (absSample > this.vizPeakAccum[i]) {
+            this.vizPeakAccum[i] = absSample;
+          }
+          this.vizSampleCount[i]++;
+          
+          // Write downsampled peak when we've accumulated enough samples
+          if (this.vizSampleCount[i] >= this.vizDownsampleFactor) {
+            const bandOffset = i * (this.vizSamplesPerBand + 2);
+            const wp = this.vizWritePos[i];
+            this.vizView[bandOffset + wp] = this.vizPeakAccum[i];
+            this.vizWritePos[i] = (wp + 1) % this.vizSamplesPerBand;
+            this.vizView[bandOffset + this.vizSamplesPerBand] = this.vizWritePos[i];
+            
+            // Reset accumulators
+            this.vizPeakAccum[i] = 0;
+            this.vizSampleCount[i] = 0;
+          }
         }
       }
 

@@ -1,16 +1,18 @@
 import React, { useRef } from 'react';
 import { colors, typography } from '../styles/theme';
 
-// Phase D5 — Audio source toolbar: power, file upload, play/stop transport
+// Phase D5 — Audio source toolbar: power, file upload, play/stop transport, export
 export default function AudioSourceControls({
   isInitialized,
   isPlaying,
   isLoaded,
+  isExporting,
   fileName,
   onInitialize,
   onLoadFile,
   onPlay,
   onStop,
+  onExport,
 }) {
   const fileInputRef = useRef(null);
 
@@ -99,6 +101,21 @@ export default function AudioSourceControls({
             }}
           >
             {isPlaying ? '\u25A0 Stop' : '\u25B6 Play'}
+          </button>
+          <button
+            onClick={onExport}
+            disabled={isExporting}
+            style={{
+              ...btnBase,
+              backgroundColor: isExporting ? '#333' : '#3a4a3a',
+              color: isExporting ? '#666' : '#8fdf8f',
+              minWidth: 54,
+              opacity: isExporting ? 0.6 : 1,
+              cursor: isExporting ? 'wait' : 'pointer',
+            }}
+            title="Export processed audio as WAV"
+          >
+            {isExporting ? 'Saving...' : '\u2B07 Save'}
           </button>
         </>
       )}

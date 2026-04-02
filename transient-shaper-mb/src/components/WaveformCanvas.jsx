@@ -1,16 +1,15 @@
 import React, { useRef, useEffect } from 'react';
 import { colors } from '../styles/theme';
 import useWaveformGenerator from '../hooks/useWaveformGenerator';
-import useRealtimeWaveform from '../hooks/useRealtimeWaveform';
 
 // Phase 4 + D6 — Canvas-based waveform visualization per band
-// Uses real-time DSP data when available, falls back to synthetic waveform
-export default function WaveformCanvas({ band, bandIndex, bandState, getVizData, vizWritePositionsRef }) {
+// Shows full file waveform when loaded, with playhead at current position
+export default function WaveformCanvas({ band, bandIndex, bandState, getVizData, vizWritePositionsRef, waveformData, getPlaybackPosition, isPlaying }) {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
   const offsetRef = useRef(0);
 
-  // Synthetic fallback data
+  // Synthetic fallback data (when no file loaded)
   const syntheticSamples = useWaveformGenerator(
     band.id,
     bandState.attack,
@@ -18,9 +17,6 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
     bandState.attackTime,
     bandState.sustainTime,
   );
-
-  // Real-time data reader (returns null when engine not running)
-  const readSamples = useRealtimeWaveform(getVizData, vizWritePositionsRef, bandIndex);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,133 +42,195 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
     });
     ro.observe(canvas);
 
-    const draw = () => {
+    let lastTime = 0;
+    
+    const draw = (currentTime) => {
+      if (lastTime === 0) lastTime = currentTime;
       const rect = canvas.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
       const midY = h / 2;
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
 
       ctx.clearRect(0, 0, w, h);
 
-      // Try real-time data first, fall back to synthetic
-      const realtimeData = readSamples();
-      const isRealtime = realtimeData !== null;
-      const samples = isRealtime ? realtimeData : syntheticSamples;
-
-      // Scroll offset (only for synthetic — real-time scrolls via ring buffer)
-      if (!isRealtime) {
-        offsetRef.current += 0.5;
-      }
-      const offset = isRealtime ? 0 : Math.floor(offsetRef.current) % samples.length;
-
-      // Draw waveform (mirrored around center)
-      const drawWave = (color, alpha, yScale, xOffset) => {
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = 1.5;
-        ctx.lineCap = 'round';
-
-        for (let x = 0; x < w; x++) {
-          const sampleIdx = (x + offset + (xOffset || 0)) % samples.length;
-          const val = samples[sampleIdx] * yScale;
-          const y = midY - val * midY * 0.85;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Mirror below
-        ctx.beginPath();
-        for (let x = 0; x < w; x++) {
-          const sampleIdx = (x + offset + (xOffset || 0)) % samples.length;
-          const val = samples[sampleIdx] * yScale;
-          const y = midY + val * midY * 0.85;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Fill with gradient
-        ctx.beginPath();
-        for (let x = 0; x < w; x++) {
-          const sampleIdx = (x + offset + (xOffset || 0)) % samples.length;
-          const val = samples[sampleIdx] * yScale;
-          const y = midY - val * midY * 0.85;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        for (let x = w - 1; x >= 0; x--) {
-          const sampleIdx = (x + offset + (xOffset || 0)) % samples.length;
-          const val = samples[sampleIdx] * yScale;
-          const y = midY + val * midY * 0.85;
-          ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, color);
-        grad.addColorStop(0.5, color + '08');
-        grad.addColorStop(1, color);
-        ctx.fillStyle = grad;
-        ctx.globalAlpha = alpha * 0.25;
-        ctx.fill();
-
-        ctx.globalAlpha = 1;
-      };
-
-      // Band-colored main waveform
-      drawWave(band.color, 0.8, 1.0, 0);
-
-      // Delta overlay (gold) — only shown for synthetic waveform display
-      if (!isRealtime) {
-        const deltaSection1Start = w * 0.35;
-        const deltaSection1End = w * 0.55;
-        const deltaSection2Start = w * 0.75;
-        const deltaSection2End = w * 0.92;
-
-        ctx.save();
-
-        const drawDeltaSection = (start, end) => {
+      // "NOW" playhead position (center of canvas)
+      const playheadX = Math.floor(w / 2);
+      
+      // Check if we have file waveform data
+      const hasFileWaveform = waveformData && waveformData.peaks;
+      
+      if (hasFileWaveform) {
+        // === FILE-BASED WAVEFORM MODE ===
+        // Show the full file with playhead scrolling through
+        const peaks = waveformData.peaks;
+        const playbackPos = isPlaying ? getPlaybackPosition() : 0; // 0 to 1
+        
+        // Calculate which sample is at the playhead (center of screen)
+        const centerSampleIdx = Math.floor(playbackPos * peaks.length);
+        
+        // How many samples fit on screen (approximately)
+        // We want to show a good portion of the file - let's show the full file width
+        // scaled to fit, with the playhead indicating position
+        const samplesPerPixel = peaks.length / w;
+        
+        // Draw the full waveform, offset so current position is at playhead
+        const drawFileWave = (color, alpha, yScale) => {
           ctx.beginPath();
-          ctx.rect(start, 0, end - start, h);
-          ctx.clip();
-          drawWave(colors.deltaOverlay, 0.6, 0.9, 30);
-          ctx.restore();
-          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = alpha;
+          ctx.lineWidth = 1.5;
+          ctx.lineCap = 'round';
+          
+          for (let x = 0; x < w; x++) {
+            // Map screen x to sample index, with centerSampleIdx at playheadX
+            const sampleOffset = x - playheadX;
+            let sampleIdx = centerSampleIdx + Math.floor(sampleOffset * samplesPerPixel);
+            
+            // Wrap for looping playback
+            while (sampleIdx < 0) sampleIdx += peaks.length;
+            while (sampleIdx >= peaks.length) sampleIdx -= peaks.length;
+            
+            const val = peaks[sampleIdx] * yScale;
+            const y = midY - val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          // Mirror below
+          ctx.beginPath();
+          for (let x = 0; x < w; x++) {
+            const sampleOffset = x - playheadX;
+            let sampleIdx = centerSampleIdx + Math.floor(sampleOffset * samplesPerPixel);
+            while (sampleIdx < 0) sampleIdx += peaks.length;
+            while (sampleIdx >= peaks.length) sampleIdx -= peaks.length;
+            
+            const val = peaks[sampleIdx] * yScale;
+            const y = midY + val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          // Fill with gradient
+          ctx.beginPath();
+          for (let x = 0; x < w; x++) {
+            const sampleOffset = x - playheadX;
+            let sampleIdx = centerSampleIdx + Math.floor(sampleOffset * samplesPerPixel);
+            while (sampleIdx < 0) sampleIdx += peaks.length;
+            while (sampleIdx >= peaks.length) sampleIdx -= peaks.length;
+            
+            const val = peaks[sampleIdx] * yScale;
+            const y = midY - val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          for (let x = w - 1; x >= 0; x--) {
+            const sampleOffset = x - playheadX;
+            let sampleIdx = centerSampleIdx + Math.floor(sampleOffset * samplesPerPixel);
+            while (sampleIdx < 0) sampleIdx += peaks.length;
+            while (sampleIdx >= peaks.length) sampleIdx -= peaks.length;
+            
+            const val = peaks[sampleIdx] * yScale;
+            const y = midY + val * midY * 0.85;
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          const grad = ctx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, color);
+          grad.addColorStop(0.5, color + '08');
+          grad.addColorStop(1, color);
+          ctx.fillStyle = grad;
+          ctx.globalAlpha = alpha * 0.25;
+          ctx.fill();
+          ctx.globalAlpha = 1;
         };
+        
+        drawFileWave(band.color, 0.8, 1.0);
+        
+      } else {
+        // === SYNTHETIC WAVEFORM MODE ===
+        // Fallback when no file is loaded
+        const samples = syntheticSamples;
+        const scrollSpeed = 0.015;
+        offsetRef.current += deltaTime * scrollSpeed;
+        const scrollOffset = Math.floor(offsetRef.current);
+        
+        const drawSyntheticWave = (color, alpha, yScale) => {
+          ctx.beginPath();
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = alpha;
+          ctx.lineWidth = 1.5;
+          ctx.lineCap = 'round';
+          
+          for (let x = 0; x < w; x++) {
+            const sampleIdx = (x + scrollOffset) % samples.length;
+            const val = samples[sampleIdx] * yScale;
+            const y = midY - val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
 
-        drawDeltaSection(deltaSection1Start, deltaSection1End);
-        drawDeltaSection(deltaSection2Start, deltaSection2End);
-        ctx.restore();
+          // Mirror below
+          ctx.beginPath();
+          for (let x = 0; x < w; x++) {
+            const sampleIdx = (x + scrollOffset) % samples.length;
+            const val = samples[sampleIdx] * yScale;
+            const y = midY + val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
 
-        // Placeholder labels for hardcoded delta sections (synthetic only)
-        ctx.font = '8px sans-serif';
-        ctx.fillStyle = '#E8443A';
-        ctx.globalAlpha = 0.9;
-        ctx.fillText('PLACEHOLDER', deltaSection1Start + 2, 10);
-        ctx.fillText('PLACEHOLDER', deltaSection2Start + 2, 10);
-        ctx.globalAlpha = 1;
+          // Fill
+          ctx.beginPath();
+          for (let x = 0; x < w; x++) {
+            const sampleIdx = (x + scrollOffset) % samples.length;
+            const val = samples[sampleIdx] * yScale;
+            const y = midY - val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          for (let x = w - 1; x >= 0; x--) {
+            const sampleIdx = (x + scrollOffset) % samples.length;
+            const val = samples[sampleIdx] * yScale;
+            const y = midY + val * midY * 0.85;
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          const grad = ctx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, color);
+          grad.addColorStop(0.5, color + '08');
+          grad.addColorStop(1, color);
+          ctx.fillStyle = grad;
+          ctx.globalAlpha = alpha * 0.25;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        };
+        
+        drawSyntheticWave(band.color, 0.8, 1.0);
       }
 
-      // Playhead cursor (thin red vertical line at ~75%) — synthetic only
-      if (!isRealtime) {
-        const playheadX = w * 0.75;
-        ctx.beginPath();
-        ctx.strokeStyle = '#E85D5D';
-        ctx.globalAlpha = 0.7;
-        ctx.lineWidth = 1;
-        ctx.moveTo(playheadX, 0);
-        ctx.lineTo(playheadX, h);
-        ctx.stroke();
-        // Label for static playhead
-        ctx.fillStyle = '#E8443A';
-        ctx.font = '7px sans-serif';
-        ctx.globalAlpha = 0.9;
-        ctx.fillText('STATIC', playheadX + 3, 10);
-        ctx.globalAlpha = 1;
-      }
+      // "NOW" playhead cursor (center of canvas)
+      ctx.beginPath();
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 2;
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, h);
+      ctx.stroke();
+      
+      // "NOW" label
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.8;
+      ctx.fillText('NOW', playheadX + 4, 12);
+      ctx.globalAlpha = 1;
 
-      // Center line
+      // Center line (amplitude zero)
       ctx.beginPath();
       ctx.strokeStyle = '#333';
       ctx.lineWidth = 0.5;
@@ -191,7 +249,7 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [syntheticSamples, band.color, readSamples]);
+  }, [syntheticSamples, band.color, waveformData, getPlaybackPosition, isPlaying]);
 
   return (
     <canvas
