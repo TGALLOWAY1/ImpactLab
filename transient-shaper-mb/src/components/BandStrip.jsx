@@ -5,10 +5,9 @@ import RotaryKnob from './ui/RotaryKnob';
 import VerticalSlider from './ui/VerticalSlider';
 import ToggleButton from './ui/ToggleButton';
 import WaveformCanvas from './WaveformCanvas';
-import { PlaceholderWrap } from './ui/PlaceholderBadge';
 
 // Phase 3 — Single band row: controls panel + waveform display
-export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispatch, getVizData, vizWritePositionsRef }) {
+export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispatch, getVizData, vizWritePositionsRef, waveformData, getPlaybackPosition, isPlaying }) {
   const setBandParam = (param, value) =>
     dispatch({ type: SET_BAND_PARAM, bandId: band.id, param, value });
 
@@ -123,7 +122,7 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
         </div>
 
         {/* Output Gain section */}
-        <PlaceholderWrap reason="NO DSP" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}>
           <VerticalSlider
             value={bandState.outputGain}
             min={-30}
@@ -132,7 +131,7 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
             color={band.color}
             onChange={(v) => setBandParam('outputGain', v)}
           />
-        </PlaceholderWrap>
+        </div>
 
         {/* Solo / Bypass buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 4 }}>
@@ -161,6 +160,9 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
           bandState={bandState}
           getVizData={getVizData}
           vizWritePositionsRef={vizWritePositionsRef}
+          waveformData={waveformData}
+          getPlaybackPosition={getPlaybackPosition}
+          isPlaying={isPlaying}
         />
       </div>
     </div>

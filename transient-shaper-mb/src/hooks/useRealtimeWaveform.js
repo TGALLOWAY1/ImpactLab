@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 
-const VIZ_SAMPLES_PER_BAND = 512;
+const VIZ_SAMPLES_PER_BAND = 1024; // Downsampled peaks, not raw samples
 
 /**
  * Returns a function that reads the latest waveform data for a given band.

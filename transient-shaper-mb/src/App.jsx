@@ -88,7 +88,8 @@ export default function App() {
 
   // Audio engine integration
   const engine = useAudioEngine(state);
-  const source = useAudioSource(engine.audioCtxRef, engine.connectSource, engine.disconnectSource);
+  const getStateForExport = React.useCallback(() => state, [state]);
+  const source = useAudioSource(engine.audioCtxRef, engine.connectSource, engine.disconnectSource, getStateForExport);
 
   return (
     <div
@@ -107,11 +108,13 @@ export default function App() {
         isInitialized={engine.isInitialized}
         isPlaying={source.isPlaying}
         isLoaded={source.isLoaded}
+        isExporting={source.isExporting}
         fileName={source.fileName}
         onInitialize={engine.initialize}
         onLoadFile={source.loadFile}
         onPlay={source.play}
         onStop={source.stop}
+        onExport={source.exportAudio}
       />
       <Header />
       <GlobalControls state={state.global} dispatch={dispatch} />
@@ -122,6 +125,9 @@ export default function App() {
         dispatch={dispatch}
         getVizData={engine.isRunning ? engine.getVizData : null}
         vizWritePositionsRef={engine.vizWritePositionsRef}
+        waveformData={source.waveformData}
+        getPlaybackPosition={source.getPlaybackPosition}
+        isPlaying={source.isPlaying}
       />
     </div>
   );
