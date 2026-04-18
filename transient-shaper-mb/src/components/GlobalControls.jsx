@@ -32,11 +32,23 @@ export default function GlobalControls({ state, dispatch }) {
         value={state.inputGain}
         min={-30}
         max={12}
-        label="Input Gain"
+        label="Input"
         color="#fff"
         size="sm"
         defaultValue={0}
         onChange={(v) => setParam('inputGain', v)}
+      />
+
+      {/* Output Gain (global trim after wet/dry mix) */}
+      <RotaryKnob
+        value={state.outputGain}
+        min={-30}
+        max={12}
+        label="Output"
+        color="#fff"
+        size="sm"
+        defaultValue={0}
+        onChange={(v) => setParam('outputGain', v)}
       />
 
       {/* Detection Speed */}

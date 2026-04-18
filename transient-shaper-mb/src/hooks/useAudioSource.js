@@ -189,7 +189,6 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
         outputGain: state.global.outputGain,
         mix: state.global.mix,
         detectionSpeed: state.global.detectionSpeed,
-        transientMode: state.global.transientMode,
         softClip: state.global.softClip,
         lookahead: state.global.lookahead,
         delta: state.global.delta,
