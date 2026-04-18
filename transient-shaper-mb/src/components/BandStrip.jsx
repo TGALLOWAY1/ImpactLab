@@ -1,6 +1,6 @@
 import React from 'react';
 import { colors, sizes } from '../styles/theme';
-import { SET_BAND_PARAM, TOGGLE_SOLO, TOGGLE_BYPASS } from '../App';
+import { SET_BAND_PARAM, TOGGLE_SOLO, TOGGLE_BYPASS, RESET_BAND } from '../App';
 import RotaryKnob from './ui/RotaryKnob';
 import VerticalSlider from './ui/VerticalSlider';
 import ToggleButton from './ui/ToggleButton';
@@ -41,6 +41,30 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
       >
         {band.label}
       </div>
+
+      {/* Per-band reset button (top-right of strip) */}
+      <button
+        onClick={() => dispatch({ type: RESET_BAND, bandId: band.id })}
+        title={`Reset ${band.label} band to defaults`}
+        style={{
+          position: 'absolute',
+          top: 2,
+          right: 4,
+          background: 'transparent',
+          border: `1px solid ${band.colorDim}`,
+          borderRadius: 3,
+          color: '#888',
+          fontSize: 8,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+          padding: '1px 6px',
+          cursor: 'pointer',
+          zIndex: 1,
+          fontFamily: 'inherit',
+        }}
+      >
+        Reset
+      </button>
 
       {/* Controls panel */}
       <div

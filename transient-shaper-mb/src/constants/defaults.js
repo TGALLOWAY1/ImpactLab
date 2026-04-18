@@ -17,7 +17,6 @@ export const DEFAULT_GLOBAL_STATE = {
   outputGain: 0,            // -30 to +12 dB
   mix: 100,                 // 0-100% (dry/wet)
   detectionSpeed: "medium", // "slow" | "medium" | "fast"
-  transientMode: "punch",   // "punch" | "snap" | "smooth"
   multibandLink: false,
   softClip: false,
   lookahead: false,
