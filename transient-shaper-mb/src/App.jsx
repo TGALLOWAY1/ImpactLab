@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react';
+import React, { useReducer, useEffect, useState } from 'react';
 import { BANDS } from './constants/bands';
 import { createInitialState, DEFAULT_BAND_STATE } from './constants/defaults';
 import { PRESETS } from './constants/presets';
@@ -9,6 +9,7 @@ import BandStripList from './components/BandStripList';
 import AudioSourceControls from './components/AudioSourceControls';
 import useAudioEngine from './hooks/useAudioEngine';
 import useAudioSource from './hooks/useAudioSource';
+import Explainer from './pages/Explainer';
 
 // Action types
 export const SET_BAND_PARAM = 'SET_BAND_PARAM';
@@ -152,7 +153,23 @@ function initReducer() {
   };
 }
 
+function useHashRoute() {
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onChange);
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+  return hash;
+}
+
 export default function App() {
+  const route = useHashRoute();
+  if (route.startsWith('#/explainer')) return <Explainer />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const [state, dispatch] = useReducer(reducer, null, initReducer);
 
   const anySoloed = BANDS.some((b) => state.bands[b.id].solo);

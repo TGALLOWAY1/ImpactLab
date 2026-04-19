@@ -564,6 +564,11 @@ class BandProcessor {
 
     // 6. Apply gain + per-band output gain
     const outGainLin = dbToLinear(this.outputGainSmoother.next());
+
+    // Expose last-detected signals (read by offline detector capture path)
+    this.lastAttackSignal = detection.attackSignal;
+    this.lastSustainSignal = detection.sustainSignal;
+
     return this.gainSmooth * outGainLin * x;
   }
 
@@ -631,6 +636,22 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     this.soloState = [false, false, false, false, false];
     this.bypassState = [false, false, false, false, false];
 
+    // Fullband explainer mode: skip crossover, route input straight to one
+    // BandProcessor so the detector + processed output reflect the full signal.
+    // Used by the /explainer route's offline pre-render, not realtime playback.
+    this.fullbandMode = !!opts.fullbandMode;
+    this.fullbandIndex = 2; // 'low-mid' BandProcessor — no sidechain HPF
+
+    // Offline detector capture: accumulate per-sample detector + I/O arrays and
+    // post them back on FINISH_CAPTURE. Only meaningful in fullbandMode.
+    this.captureDetector = !!opts.captureDetector;
+    if (this.captureDetector) {
+      this.captureAttackBuf = [];
+      this.captureSustainBuf = [];
+      this.captureInputBuf = [];
+      this.captureOutputBuf = [];
+    }
+
     // Viz data: SharedArrayBuffer or postMessage fallback
     // Downsampled for longer time window (~6 seconds visible)
     this.vizSab = opts.vizSharedBuffer || null;
@@ -669,6 +690,25 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       case 'RESET':
         this._reset();
         break;
+      case 'FINISH_CAPTURE': {
+        if (!this.captureDetector) {
+          this.port.postMessage({ type: 'captureResult', attack: null, sustain: null, input: null, output: null });
+          break;
+        }
+        const attack = new Float32Array(this.captureAttackBuf);
+        const sustain = new Float32Array(this.captureSustainBuf);
+        const inputArr = new Float32Array(this.captureInputBuf);
+        const outputArr = new Float32Array(this.captureOutputBuf);
+        this.port.postMessage(
+          { type: 'captureResult', attack, sustain, input: inputArr, output: outputArr },
+          [attack.buffer, sustain.buffer, inputArr.buffer, outputArr.buffer]
+        );
+        this.captureAttackBuf = [];
+        this.captureSustainBuf = [];
+        this.captureInputBuf = [];
+        this.captureOutputBuf = [];
+        break;
+      }
     }
   }
 
@@ -796,6 +836,39 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       } else {
         dryL = sampleL;
         dryR = sampleR;
+      }
+
+      // Fullband explainer path: bypass the crossover chain entirely, run
+      // the full-bandwidth signal through a single BandProcessor. This keeps
+      // detector + output clean for the 3-row visualization.
+      if (this.fullbandMode) {
+        const idx = this.fullbandIndex;
+        const bp = this.bandProcessorsL[idx];
+        const bpR = this.bandProcessorsR[idx];
+        const wetL = bp.processSample(sampleL);
+        const wetR = bpR.processSample(sampleR);
+
+        if (this.captureDetector) {
+          this.captureInputBuf.push(sampleL);
+          this.captureOutputBuf.push(wetL);
+          this.captureAttackBuf.push(bp.lastAttackSignal || 0);
+          this.captureSustainBuf.push(bp.lastSustainSignal || 0);
+        }
+
+        let finalL = wetL;
+        let finalR = wetR;
+        if (this.deltaEnabled) { finalL -= dryL; finalR -= dryR; }
+        if (this.softClipEnabled) {
+          finalL = this.limiter.process(finalL);
+          finalR = this.limiter.process(finalR);
+        }
+        const mix = this.mixSmoother.next();
+        finalL = mix * finalL + (1 - mix) * dryL;
+        finalR = mix * finalR + (1 - mix) * dryR;
+        const outGainLin = dbToLinear(this.outputGainSmoother.next());
+        outL[n] = finalL * outGainLin;
+        outR[n] = finalR * outGainLin;
+        continue;
       }
 
       // 2. Split into 5 bands through crossover chain
