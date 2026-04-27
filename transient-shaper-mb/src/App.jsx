@@ -7,6 +7,7 @@ import Header from './components/Header';
 import GlobalControls from './components/GlobalControls';
 import BandStripList from './components/BandStripList';
 import AudioSourceControls from './components/AudioSourceControls';
+import RightPanel from './components/RightPanel';
 import useAudioEngine from './hooks/useAudioEngine';
 import useAudioSource from './hooks/useAudioSource';
 import Explainer from './pages/Explainer';
@@ -211,17 +212,42 @@ function MainApp() {
         dispatch={dispatch}
       />
       <GlobalControls state={state.global} dispatch={dispatch} />
-      <BandStripList
-        bands={BANDS}
-        bandStates={state.bands}
-        anySoloed={anySoloed}
-        dispatch={dispatch}
-        getVizData={engine.isRunning ? engine.getVizData : null}
-        vizWritePositionsRef={engine.vizWritePositionsRef}
-        waveformData={source.waveformData}
-        getPlaybackPosition={source.getPlaybackPosition}
-        isPlaying={source.isPlaying}
-      />
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <BandStripList
+          bands={BANDS}
+          bandStates={state.bands}
+          anySoloed={anySoloed}
+          dispatch={dispatch}
+          getVizData={engine.isRunning ? engine.getVizData : null}
+          vizWritePositionsRef={engine.vizWritePositionsRef}
+          waveformData={source.waveformData}
+          getPlaybackPosition={source.getPlaybackPosition}
+          isPlaying={source.isPlaying}
+        />
+        <RightPanel
+          state={state.global}
+          dispatch={dispatch}
+          setGlobalParam={(param, value) => dispatch({ type: SET_GLOBAL_PARAM, param, value })}
+        />
+      </div>
+      <div style={{
+        height: 58,
+        borderTop: '1px solid #243148',
+        background: 'linear-gradient(180deg, #0f1727, #0b1221)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 16px',
+        color: '#9ba8c0',
+        letterSpacing: 1,
+        fontSize: 11,
+      }}>
+        <span>TRANSIENT SHAPE</span>
+        <div style={{ flex: 1, maxWidth: 460, margin: '0 16px', height: 2, background: '#23314f', position: 'relative' }}>
+          <div style={{ position: 'absolute', left: '52%', top: -5, width: 12, height: 12, borderRadius: 12, border: '1px solid #8598bf', background: '#0f1628' }} />
+        </div>
+        <span>ENVELOPE · CLASSIC</span>
+      </div>
     </div>
   );
 }
