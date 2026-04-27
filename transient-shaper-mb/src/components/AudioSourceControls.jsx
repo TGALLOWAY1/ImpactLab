@@ -1,5 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { colors, typography } from '../styles/theme';
+
+const DEMO_LOOP_URL = 'https://upload.wikimedia.org/wikipedia/commons/2/21/Drum_loop_%28Carrai_Pass%29.wav';
 
 // Phase D5 — Audio source toolbar: power, file upload, play/stop transport, export
 export default function AudioSourceControls({
@@ -15,12 +17,29 @@ export default function AudioSourceControls({
   onExport,
 }) {
   const fileInputRef = useRef(null);
+  const [loadingDemo, setLoadingDemo] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) onLoadFile(file);
-    // Reset so same file can be re-selected
     e.target.value = '';
+  };
+
+  const handleLoadDemo = async () => {
+    try {
+      if (!isInitialized) await onInitialize();
+      setLoadingDemo(true);
+      const response = await fetch(DEMO_LOOP_URL);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const demoFile = new File([blob], 'drum-loop-carrai-pass.wav', { type: blob.type || 'audio/wav' });
+      onLoadFile(demoFile);
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      window.alert(`Failed to load demo loop: ${err.message}`);
+    } finally {
+      setLoadingDemo(false);
+    }
   };
 
   return (
@@ -38,7 +57,6 @@ export default function AudioSourceControls({
         minHeight: 32,
       }}
     >
-      {/* Power / Initialize button */}
       <button
         onClick={onInitialize}
         style={{
@@ -53,14 +71,7 @@ export default function AudioSourceControls({
         {isInitialized ? '\u25C9' : '\u2B58'}
       </button>
 
-      {/* File upload */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="audio/*"
-        onChange={handleFileChange}
-        style={{ display: 'none' }}
-      />
+      <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} style={{ display: 'none' }} />
       <button
         onClick={() => {
           if (!isInitialized) onInitialize().then(() => fileInputRef.current?.click());
@@ -72,13 +83,21 @@ export default function AudioSourceControls({
         Load File
       </button>
 
-      {/* File name display */}
+      <button
+        onClick={handleLoadDemo}
+        disabled={loadingDemo}
+        style={{ ...btnBase, backgroundColor: '#2f3e5e', color: '#b8cbf2', opacity: loadingDemo ? 0.7 : 1 }}
+        title="Load open-source demo loop by Pannage (CC BY-SA 3.0)"
+      >
+        {loadingDemo ? 'Loading Demo…' : 'Load Demo Loop'}
+      </button>
+
       {fileName && (
         <span
           style={{
             color: colors.textLabel,
             fontSize: 10,
-            maxWidth: 160,
+            maxWidth: 240,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -88,7 +107,6 @@ export default function AudioSourceControls({
         </span>
       )}
 
-      {/* Transport controls */}
       {isLoaded && (
         <>
           <button
@@ -120,12 +138,11 @@ export default function AudioSourceControls({
         </>
       )}
 
-      {/* Status indicator */}
       <span style={{ marginLeft: 'auto', color: colors.textInactive, fontSize: 9, letterSpacing: '0.5px' }}>
         {!isInitialized
           ? 'Click power to start'
           : !isLoaded
-          ? 'Load an audio file'
+          ? 'Load an audio file (or demo loop)'
           : isPlaying
           ? 'Playing (looped)'
           : 'Ready'}

@@ -226,7 +226,6 @@ function MainApp() {
         />
         <RightPanel
           state={state.global}
-          dispatch={dispatch}
           setGlobalParam={(param, value) => dispatch({ type: SET_GLOBAL_PARAM, param, value })}
         />
       </div>

@@ -24,8 +24,9 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
       }}
     >
       <div style={{ width: sizes.controlsPanelWidth, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '8px 10px', gap: 10, borderRight: `1px solid ${band.colorDim}` }}>
-        <div style={{ width: 86 }}>
+        <div style={{ width: 120 }}>
           <div style={{ color: band.color, fontSize: 30, lineHeight: 1, fontWeight: 600 }}>{band.label.toUpperCase()}</div>
+          <div style={{ color: '#7e8ead', fontSize: 13, marginTop: 2 }}>{band.range}</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -37,8 +38,8 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
           <span style={valueStyle}>{fmtSigned(bandState.sustain)}%</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <RotaryKnob value={100 - Math.abs(bandState.attack - bandState.sustain) / 2} min={0} max={100} label="Mix" color={band.color} size="md" defaultValue={100} onChange={() => {}} />
-          <span style={valueStyle}>100%</span>
+          <RotaryKnob value={bandState.mix ?? 100} min={0} max={100} label="Mix" color={band.color} size="md" defaultValue={100} onChange={(v) => setBandParam('mix', v)} />
+          <span style={valueStyle}>{Math.round(bandState.mix ?? 100)}%</span>
         </div>
 
         <VerticalSlider value={bandState.outputGain} min={-30} max={6} label="Gain" color={band.color} onChange={(v) => setBandParam('outputGain', v)} />

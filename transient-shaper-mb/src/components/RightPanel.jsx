@@ -2,7 +2,7 @@ import React from 'react';
 import RotaryKnob from './ui/RotaryKnob';
 import ToggleButton from './ui/ToggleButton';
 
-export default function RightPanel({ state, dispatch, setGlobalParam }) {
+export default function RightPanel({ state, setGlobalParam }) {
   const meterStyle = (grad) => ({
     width: 14,
     height: 250,
