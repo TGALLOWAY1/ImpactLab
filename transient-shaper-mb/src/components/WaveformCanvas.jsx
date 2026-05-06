@@ -1,15 +1,21 @@
 import React, { useRef, useEffect } from 'react';
 import { colors } from '../styles/theme';
 import useWaveformGenerator from '../hooks/useWaveformGenerator';
+import useRealtimeWaveform from '../hooks/useRealtimeWaveform';
 
 // Phase 4 + D6 — Canvas-based waveform visualization per band
-// Shows full file waveform when loaded, with playhead at current position
-export default function WaveformCanvas({ band, bandIndex, bandState, getVizData, vizWritePositionsRef, waveformData, getPlaybackPosition, isPlaying }) {
+// Real-time mode (audio running): per-band filtered peaks from SAB.
+// File mode (file loaded, paused): static file waveform, faded.
+// Synthetic mode (no file): parametric placeholder.
+export default function WaveformCanvas({ band, bandIndex, bandState, getVizData, vizWritePositionsRef, isRunning, waveformData, getPlaybackPosition, isPlaying }) {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
   const offsetRef = useRef(0);
 
-  // Synthetic fallback data (when no file loaded)
+  // Real-time SAB reader (returns null when audio is not running)
+  const readRealtime = useRealtimeWaveform(getVizData, vizWritePositionsRef, bandIndex);
+
+  // Synthetic fallback data (when no file loaded and no audio running)
   const syntheticSamples = useWaveformGenerator(
     band.id,
     bandState.attack,
@@ -57,10 +63,96 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
 
       // "NOW" playhead position (center of canvas)
       const playheadX = Math.floor(w / 2);
-      
+
+      // === REAL-TIME PER-BAND MODE (preferred when audio is running) ===
+      const liveSamples = isRunning ? readRealtime() : null;
+      if (liveSamples) {
+        // Newest sample sits at end of `liveSamples`; align it under the playhead.
+        const len = liveSamples.length;
+        const samplesPerPixel = len / w;
+        const drawPeakWave = (color, alpha) => {
+          ctx.beginPath();
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = alpha;
+          ctx.lineWidth = 1.5;
+          ctx.lineCap = 'round';
+          for (let x = 0; x < w; x++) {
+            // Newest at right edge: index = len - 1 - (w - 1 - x) * samplesPerPixel
+            const sIdx = Math.floor(len - 1 - (w - 1 - x) * samplesPerPixel);
+            const idx = sIdx < 0 ? 0 : sIdx >= len ? len - 1 : sIdx;
+            const val = liveSamples[idx];
+            const y = midY - val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          // Mirror below
+          ctx.beginPath();
+          for (let x = 0; x < w; x++) {
+            const sIdx = Math.floor(len - 1 - (w - 1 - x) * samplesPerPixel);
+            const idx = sIdx < 0 ? 0 : sIdx >= len ? len - 1 : sIdx;
+            const val = liveSamples[idx];
+            const y = midY + val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          // Fill
+          ctx.beginPath();
+          for (let x = 0; x < w; x++) {
+            const sIdx = Math.floor(len - 1 - (w - 1 - x) * samplesPerPixel);
+            const idx = sIdx < 0 ? 0 : sIdx >= len ? len - 1 : sIdx;
+            const val = liveSamples[idx];
+            const y = midY - val * midY * 0.85;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          for (let x = w - 1; x >= 0; x--) {
+            const sIdx = Math.floor(len - 1 - (w - 1 - x) * samplesPerPixel);
+            const idx = sIdx < 0 ? 0 : sIdx >= len ? len - 1 : sIdx;
+            const val = liveSamples[idx];
+            const y = midY + val * midY * 0.85;
+            ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          const grad = ctx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, color);
+          grad.addColorStop(0.5, color + '08');
+          grad.addColorStop(1, color);
+          ctx.fillStyle = grad;
+          ctx.globalAlpha = alpha * 0.25;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        };
+        drawPeakWave(band.color, 0.85);
+        // Skip file/synthetic branches
+        // (fall through to playhead/center-line drawing at the bottom)
+        // Render NOW playhead + center line below.
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = 2;
+        ctx.moveTo(playheadX, 0);
+        ctx.lineTo(playheadX, h);
+        ctx.stroke();
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.8;
+        ctx.fillText('NOW', playheadX + 4, 12);
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 0.5;
+        ctx.moveTo(0, midY);
+        ctx.lineTo(w, midY);
+        ctx.stroke();
+        animFrameRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
       // Check if we have file waveform data
       const hasFileWaveform = waveformData && waveformData.peaks;
-      
+
       if (hasFileWaveform) {
         // === FILE-BASED WAVEFORM MODE ===
         // Show the full file with playhead scrolling through
@@ -249,7 +341,7 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [syntheticSamples, band.color, waveformData, getPlaybackPosition, isPlaying]);
+  }, [syntheticSamples, band.color, waveformData, getPlaybackPosition, isPlaying, isRunning, readRealtime]);
 
   return (
     <canvas

@@ -477,6 +477,10 @@ class BandProcessor {
     this.attackAmountSmoother = new ParameterSmoother(sampleRate, 20);
     this.sustainAmountSmoother = new ParameterSmoother(sampleRate, 20);
     this.outputGainSmoother = new ParameterSmoother(sampleRate, 20);
+    // Per-band wet/dry blend, 0..1
+    this.mixSmoother = new ParameterSmoother(sampleRate, 20);
+    this.mixSmoother.setTarget(1.0);
+    this.mixSmoother.snap();
 
     // Crossfade for detector switching (prevents clicks)
     this.oldDetector = null;
@@ -499,11 +503,12 @@ class BandProcessor {
     this.currentMethod = method;
   }
 
-  setParams(attackAmount, sustainAmount, outputGain, attackTime, sustainTime, speedMultiplier) {
+  setParams(attackAmount, sustainAmount, outputGain, attackTime, sustainTime, speedMultiplier, mixAmount) {
     // attackAmount/sustainAmount: -100 to +100 (UI percentage)
     this.attackAmountSmoother.setTarget(attackAmount);
     this.sustainAmountSmoother.setTarget(sustainAmount);
     this.outputGainSmoother.setTarget(outputGain);
+    if (mixAmount !== undefined) this.mixSmoother.setTarget(clamp(mixAmount, 0, 1));
 
     // Map attackTime (0-100) to actual ms range for this band
     // 0 = base * 0.25, 50 = base * 1.0, 100 = base * 4.0
@@ -569,7 +574,10 @@ class BandProcessor {
     this.lastAttackSignal = detection.attackSignal;
     this.lastSustainSignal = detection.sustainSignal;
 
-    return this.gainSmooth * outGainLin * x;
+    // 7. Per-band wet/dry blend
+    const wet = this.gainSmooth * outGainLin * x;
+    const m = this.mixSmoother.next();
+    return m * wet + (1 - m) * x;
   }
 
   reset() {
@@ -579,6 +587,7 @@ class BandProcessor {
     this.attackAmountSmoother.snap();
     this.sustainAmountSmoother.snap();
     this.outputGainSmoother.snap();
+    this.mixSmoother.snap();
     this.oldDetector = null;
     this.crossfadeSamples = 0;
   }
@@ -618,9 +627,21 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     this.lookaheadR = new CircularBuffer(lookaheadSamples);
     this.lookaheadEnabled = !!this.params.lookahead;
 
-    // Soft limiter
-    this.limiter = new SoftLimiter();
+    // Soft limiter — per channel so L gain reduction does not couple R
+    this.limiterL = new SoftLimiter();
+    this.limiterR = new SoftLimiter();
     this.softClipEnabled = !!this.params.softClip;
+
+    // Pre-allocated per-sample band scratch buffers (avoids audio-thread allocation)
+    this._bandsL = new Float32Array(5);
+    this._bandsR = new Float32Array(5);
+
+    // Global bypass (dry pass-through)
+    this.globalBypass = !!this.params.globalBypass;
+
+    // Meter accumulators (reset after each post)
+    this._meterReset();
+    this.meterPostInterval = 11; // ~32ms at 128/44.1k → ~31 Hz
 
     // Global gain smoothers
     this.inputGainSmoother = new ParameterSmoother(this.sr, 20);
@@ -723,6 +744,7 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     // Toggles
     if (params.softClip !== undefined) this.softClipEnabled = params.softClip;
     if (params.delta !== undefined) this.deltaEnabled = params.delta;
+    if (params.globalBypass !== undefined) this.globalBypass = !!params.globalBypass;
 
     // Lookahead
     if (params.lookahead !== undefined) {
@@ -758,17 +780,20 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
         const bp = params.bands[bandId];
         if (!bp) continue;
 
+        const mixUnit = bp.mix !== undefined ? bp.mix / 100 : 1.0;
         this.bandProcessorsL[i].setParams(
           bp.attack || 0, bp.sustain || 0, bp.outputGain || 0,
           bp.attackTime !== undefined ? bp.attackTime : 50,
           bp.sustainTime !== undefined ? bp.sustainTime : 50,
-          this.speedMultiplier
+          this.speedMultiplier,
+          mixUnit
         );
         this.bandProcessorsR[i].setParams(
           bp.attack || 0, bp.sustain || 0, bp.outputGain || 0,
           bp.attackTime !== undefined ? bp.attackTime : 50,
           bp.sustainTime !== undefined ? bp.sustainTime : 50,
-          this.speedMultiplier
+          this.speedMultiplier,
+          mixUnit
         );
 
         this.soloState[i] = !!bp.solo;
@@ -792,11 +817,28 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     }
   }
 
+  _meterReset() {
+    // Block-accumulated peak/RMS values (linear, not dB)
+    this.meterInPeakL = 0; this.meterInPeakR = 0;
+    this.meterOutPeakL = 0; this.meterOutPeakR = 0;
+    this.meterInSqAccL = 0; this.meterInSqAccR = 0;
+    this.meterOutSqAccL = 0; this.meterOutSqAccR = 0;
+    this.meterSampleCount = 0;
+    // Lowest gainSmooth observed across post window (1.0 = no GR, <1 = GR)
+    this.meterGrMin = 1.0;
+    this.meterBandGrMin = this.meterBandGrMin || new Float32Array(5);
+    for (let i = 0; i < 5; i++) this.meterBandGrMin[i] = 1.0;
+    this.meterBlockCounter = 0;
+  }
+
   _reset() {
     this.crossoversL.forEach(c => c.reset());
     this.crossoversR.forEach(c => c.reset());
     this.bandProcessorsL.forEach(p => p.reset());
     this.bandProcessorsR.forEach(p => p.reset());
+    this.limiterL = new SoftLimiter();
+    this.limiterR = new SoftLimiter();
+    this._meterReset();
     this.lookaheadL.reset();
     this.lookaheadR.reset();
   }
@@ -822,11 +864,22 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     // Check if any band is soloed
     const anySoloed = this.soloState.some(s => s);
 
+    const bandsL = this._bandsL;
+    const bandsR = this._bandsR;
+
     for (let n = 0; n < blockSize; n++) {
       // 1. Input gain
       const inGainLin = dbToLinear(this.inputGainSmoother.next());
-      let sampleL = inL[n] * inGainLin;
-      let sampleR = inR[n] * inGainLin;
+      const sampleL = inL[n] * inGainLin;
+      const sampleR = inR[n] * inGainLin;
+
+      // IN meter accumulation (post input-gain stage)
+      const inAbsL = sampleL >= 0 ? sampleL : -sampleL;
+      const inAbsR = sampleR >= 0 ? sampleR : -sampleR;
+      if (inAbsL > this.meterInPeakL) this.meterInPeakL = inAbsL;
+      if (inAbsR > this.meterInPeakR) this.meterInPeakR = inAbsR;
+      this.meterInSqAccL += sampleL * sampleL;
+      this.meterInSqAccR += sampleR * sampleR;
 
       // Dry signal (delayed if lookahead)
       let dryL, dryR;
@@ -836,6 +889,25 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       } else {
         dryL = sampleL;
         dryR = sampleR;
+      }
+
+      // Global bypass: dry through (lookahead-aligned to avoid click on toggle)
+      if (this.globalBypass) {
+        const outGainLin = dbToLinear(this.outputGainSmoother.next());
+        // Still advance smoothers consistently
+        this.mixSmoother.next();
+        const o0 = dryL * outGainLin;
+        const o1 = dryR * outGainLin;
+        outL[n] = o0;
+        outR[n] = o1;
+        const oAbsL = o0 >= 0 ? o0 : -o0;
+        const oAbsR = o1 >= 0 ? o1 : -o1;
+        if (oAbsL > this.meterOutPeakL) this.meterOutPeakL = oAbsL;
+        if (oAbsR > this.meterOutPeakR) this.meterOutPeakR = oAbsR;
+        this.meterOutSqAccL += o0 * o0;
+        this.meterOutSqAccR += o1 * o1;
+        this.meterSampleCount++;
+        continue;
       }
 
       // Fullband explainer path: bypass the crossover chain entirely, run
@@ -859,23 +931,29 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
         let finalR = wetR;
         if (this.deltaEnabled) { finalL -= dryL; finalR -= dryR; }
         if (this.softClipEnabled) {
-          finalL = this.limiter.process(finalL);
-          finalR = this.limiter.process(finalR);
+          finalL = this.limiterL.process(finalL);
+          finalR = this.limiterR.process(finalR);
         }
         const mix = this.mixSmoother.next();
         finalL = mix * finalL + (1 - mix) * dryL;
         finalR = mix * finalR + (1 - mix) * dryR;
         const outGainLin = dbToLinear(this.outputGainSmoother.next());
-        outL[n] = finalL * outGainLin;
-        outR[n] = finalR * outGainLin;
+        const o0 = finalL * outGainLin;
+        const o1 = finalR * outGainLin;
+        outL[n] = o0;
+        outR[n] = o1;
+        const oAbsL = o0 >= 0 ? o0 : -o0;
+        const oAbsR = o1 >= 0 ? o1 : -o1;
+        if (oAbsL > this.meterOutPeakL) this.meterOutPeakL = oAbsL;
+        if (oAbsR > this.meterOutPeakR) this.meterOutPeakR = oAbsR;
+        this.meterOutSqAccL += o0 * o0;
+        this.meterOutSqAccR += o1 * o1;
+        this.meterSampleCount++;
         continue;
       }
 
       // 2. Split into 5 bands through crossover chain
       // Topology: input → xover[0] → (LP=sub, HP → xover[1] → (LP=low, HP → xover[2] → (LP=lowMid, HP → xover[3] → (LP=highMid, HP=high))))
-      const bandsL = new Float32Array(5);
-      const bandsR = new Float32Array(5);
-
       let remainL = sampleL;
       let remainR = sampleR;
       for (let i = 0; i < 4; i++) {
@@ -893,8 +971,8 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       let wetL = 0;
       let wetR = 0;
       for (let i = 0; i < 5; i++) {
-        let bL = bandsL[i];
-        let bR = bandsR[i];
+        const bL = bandsL[i];
+        const bR = bandsR[i];
 
         // Solo/bypass logic
         if (this.bypassState[i]) {
@@ -911,14 +989,24 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
           wetR += this.bandProcessorsR[i].processSample(bR);
         }
 
-        // Accumulate peak for downsampled viz data
+        // Per-band GR tracking (read after processing — gainSmooth is the
+        // shaper's instantaneous linear gain; <1.0 means active reduction)
+        const gL = this.bandProcessorsL[i].gainSmooth;
+        const gR = this.bandProcessorsR[i].gainSmooth;
+        const gMin = gL < gR ? gL : gR;
+        if (gMin < this.meterBandGrMin[i]) this.meterBandGrMin[i] = gMin;
+        if (gMin < this.meterGrMin) this.meterGrMin = gMin;
+
+        // Accumulate peak for downsampled viz data — stereo max
         if (this.vizView) {
-          const absSample = Math.abs(bL);
+          const aL = bL >= 0 ? bL : -bL;
+          const aR = bR >= 0 ? bR : -bR;
+          const absSample = aL > aR ? aL : aR;
           if (absSample > this.vizPeakAccum[i]) {
             this.vizPeakAccum[i] = absSample;
           }
           this.vizSampleCount[i]++;
-          
+
           // Write downsampled peak when we've accumulated enough samples
           if (this.vizSampleCount[i] >= this.vizDownsampleFactor) {
             const bandOffset = i * (this.vizSamplesPerBand + 2);
@@ -926,7 +1014,7 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
             this.vizView[bandOffset + wp] = this.vizPeakAccum[i];
             this.vizWritePos[i] = (wp + 1) % this.vizSamplesPerBand;
             this.vizView[bandOffset + this.vizSamplesPerBand] = this.vizWritePos[i];
-            
+
             // Reset accumulators
             this.vizPeakAccum[i] = 0;
             this.vizSampleCount[i] = 0;
@@ -934,10 +1022,10 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // 4. Soft limiter
+      // 4. Soft limiter (per-channel state)
       if (this.softClipEnabled) {
-        wetL = this.limiter.process(wetL);
-        wetR = this.limiter.process(wetR);
+        wetL = this.limiterL.process(wetL);
+        wetR = this.limiterR.process(wetR);
       }
 
       // 5. Delta mode (hear only processed difference)
@@ -953,8 +1041,19 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
 
       // 7. Output gain
       const outGainLin = dbToLinear(this.outputGainSmoother.next());
-      outL[n] = finalL * outGainLin;
-      outR[n] = finalR * outGainLin;
+      const o0 = finalL * outGainLin;
+      const o1 = finalR * outGainLin;
+      outL[n] = o0;
+      outR[n] = o1;
+
+      // OUT meter accumulation
+      const oAbsL = o0 >= 0 ? o0 : -o0;
+      const oAbsR = o1 >= 0 ? o1 : -o1;
+      if (oAbsL > this.meterOutPeakL) this.meterOutPeakL = oAbsL;
+      if (oAbsR > this.meterOutPeakR) this.meterOutPeakR = oAbsR;
+      this.meterOutSqAccL += o0 * o0;
+      this.meterOutSqAccR += o1 * o1;
+      this.meterSampleCount++;
     }
 
     // Periodically notify main thread about viz write position (low overhead)
@@ -965,6 +1064,29 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
         type: 'vizUpdate',
         writePositions: Array.from(this.vizWritePos),
       });
+    }
+
+    // Periodic meter post (~30 Hz)
+    this.meterBlockCounter++;
+    if (this.meterBlockCounter >= this.meterPostInterval) {
+      const n = this.meterSampleCount > 0 ? this.meterSampleCount : 1;
+      const inRmsL = Math.sqrt(this.meterInSqAccL / n);
+      const inRmsR = Math.sqrt(this.meterInSqAccR / n);
+      const outRmsL = Math.sqrt(this.meterOutSqAccL / n);
+      const outRmsR = Math.sqrt(this.meterOutSqAccR / n);
+      const grDb = linearToDb(this.meterGrMin); // <=0 dB; more negative = more reduction
+      const bandGrDb = new Array(5);
+      for (let i = 0; i < 5; i++) bandGrDb[i] = linearToDb(this.meterBandGrMin[i]);
+      this.port.postMessage({
+        type: 'meters',
+        inPeakL: this.meterInPeakL, inPeakR: this.meterInPeakR,
+        inRmsL, inRmsR,
+        outPeakL: this.meterOutPeakL, outPeakR: this.meterOutPeakR,
+        outRmsL, outRmsR,
+        grDb,
+        bandGrDb,
+      });
+      this._meterReset();
     }
 
     return true;

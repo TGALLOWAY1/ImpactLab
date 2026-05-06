@@ -209,6 +209,7 @@ function MainApp() {
         presetName={state.presetName}
         abSlot={state.abSlot}
         anySoloed={anySoloed}
+        globalBypass={state.global.globalBypass}
         dispatch={dispatch}
       />
       <GlobalControls state={state.global} dispatch={dispatch} />
@@ -220,32 +221,18 @@ function MainApp() {
           dispatch={dispatch}
           getVizData={engine.isRunning ? engine.getVizData : null}
           vizWritePositionsRef={engine.vizWritePositionsRef}
+          metersRef={engine.metersRef}
+          isRunning={engine.isRunning}
           waveformData={source.waveformData}
           getPlaybackPosition={source.getPlaybackPosition}
           isPlaying={source.isPlaying}
         />
         <RightPanel
           state={state.global}
+          metersRef={engine.metersRef}
+          isRunning={engine.isRunning}
           setGlobalParam={(param, value) => dispatch({ type: SET_GLOBAL_PARAM, param, value })}
         />
-      </div>
-      <div style={{
-        height: 58,
-        borderTop: '1px solid #243148',
-        background: 'linear-gradient(180deg, #0f1727, #0b1221)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 16px',
-        color: '#9ba8c0',
-        letterSpacing: 1,
-        fontSize: 11,
-      }}>
-        <span>TRANSIENT SHAPE</span>
-        <div style={{ flex: 1, maxWidth: 460, margin: '0 16px', height: 2, background: '#23314f', position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '52%', top: -5, width: 12, height: 12, borderRadius: 12, border: '1px solid #8598bf', background: '#0f1628' }} />
-        </div>
-        <span>ENVELOPE · CLASSIC</span>
       </div>
     </div>
   );
