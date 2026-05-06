@@ -1,9 +1,21 @@
 import React from 'react';
 import RotaryKnob from './ui/RotaryKnob';
 import ToggleButton from './ui/ToggleButton';
+import useMeters, { linearToMeterHeight, grDbToHeight } from '../hooks/useMeters';
 
-export default function RightPanel({ state, setGlobalParam }) {
-  const meterStyle = (grad) => ({
+export default function RightPanel({ state, setGlobalParam, metersRef, isRunning }) {
+  const meters = useMeters(metersRef, isRunning);
+
+  // Stereo bars use max(L, R) of peak with RMS underlay. When idle, height = 0.
+  const inH = meters
+    ? linearToMeterHeight(Math.max(meters.inPeakL, meters.inPeakR))
+    : 0;
+  const outH = meters
+    ? linearToMeterHeight(Math.max(meters.outPeakL, meters.outPeakR))
+    : 0;
+  const grH = meters ? grDbToHeight(meters.grDb) : 0;
+
+  const meterStyle = () => ({
     width: 14,
     height: 250,
     borderRadius: 3,
@@ -13,6 +25,8 @@ export default function RightPanel({ state, setGlobalParam }) {
     position: 'relative',
     boxShadow: 'inset 0 0 10px rgba(0,0,0,0.55)',
   });
+
+  const heights = [inH, outH, grH];
 
   return (
     <aside
@@ -37,8 +51,11 @@ export default function RightPanel({ state, setGlobalParam }) {
                   left: 1,
                   right: 1,
                   bottom: 1,
-                  height: idx === 2 ? '58%' : idx === 1 ? '70%' : '82%',
-                  background: 'linear-gradient(180deg, #ff5a5a 0%, #f6b84f 20%, #60d86d 45%, #2ab552 100%)',
+                  height: `${Math.round(heights[idx] * 100)}%`,
+                  background: idx === 2
+                    ? 'linear-gradient(180deg, #ff5a5a 0%, #f6b84f 60%, #f6b84f 100%)'
+                    : 'linear-gradient(180deg, #ff5a5a 0%, #f6b84f 20%, #60d86d 45%, #2ab552 100%)',
+                  transition: 'height 50ms linear',
                 }}
               />
             </div>

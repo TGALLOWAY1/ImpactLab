@@ -7,9 +7,10 @@ import {
   COPY_AB_SLOT,
   RESET_ALL,
   UNSOLO_ALL,
+  SET_GLOBAL_PARAM,
 } from '../App';
 
-export default function Header({ presetName, abSlot, anySoloed, dispatch }) {
+export default function Header({ presetName, abSlot, anySoloed, globalBypass, dispatch }) {
   return (
     <div
       style={{
@@ -44,8 +45,11 @@ export default function Header({ presetName, abSlot, anySoloed, dispatch }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <SmallButton label="Bypass" />
-        <div style={{ color: '#8ea0c0', fontSize: 18 }}>⚙</div>
+        <SmallButton
+          label="Bypass"
+          active={globalBypass}
+          onClick={() => dispatch({ type: SET_GLOBAL_PARAM, param: 'globalBypass', value: !globalBypass })}
+        />
       </div>
     </div>
   );
@@ -103,8 +107,15 @@ function ABCompare({ abSlot, onSwitch, onCopy }) {
   );
 }
 
-function SmallButton({ label, onClick }) {
-  return <button onClick={onClick} style={pickerBase}>{label}</button>;
+function SmallButton({ label, onClick, active = false }) {
+  const style = active
+    ? { ...pickerBase, background: '#9f78ff', color: '#0b1221', border: '1px solid #c4a8ff' }
+    : pickerBase;
+  return (
+    <button onClick={onClick} aria-pressed={active} style={style}>
+      {label}
+    </button>
+  );
 }
 
 const pickerBase = {

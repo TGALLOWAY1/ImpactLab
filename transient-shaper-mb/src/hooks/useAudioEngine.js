@@ -2,9 +2,16 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 
 const VIZ_SAMPLES_PER_BAND = 1024; // Downsampled peaks, not raw samples
 const NUM_BANDS = 5;
-// Per band: 512 samples + 1 write position + 1 reserved = 514 floats
+// Per band: 1024 peaks + 1 write position + 1 reserved = 1026 floats
 const FLOATS_PER_BAND = VIZ_SAMPLES_PER_BAND + 2;
 const TOTAL_VIZ_FLOATS = NUM_BANDS * FLOATS_PER_BAND;
+
+const INITIAL_METERS = {
+  inPeakL: 0, inPeakR: 0, inRmsL: 0, inRmsR: 0,
+  outPeakL: 0, outPeakR: 0, outRmsL: 0, outRmsR: 0,
+  grDb: 0,
+  bandGrDb: [0, 0, 0, 0, 0],
+};
 
 function serializeState(state) {
   return {
@@ -15,6 +22,7 @@ function serializeState(state) {
     softClip: state.global.softClip,
     lookahead: state.global.lookahead,
     delta: state.global.delta,
+    globalBypass: state.global.globalBypass,
     crossoverFreqs: state.global.crossoverFreqs,
     detectionMethod: state.global.detectionMethod || 'dual-envelope',
     bands: state.bands,
@@ -27,6 +35,7 @@ export default function useAudioEngine(state) {
   const vizSabRef = useRef(null);
   const vizViewRef = useRef(null);
   const vizWritePositionsRef = useRef(new Array(NUM_BANDS).fill(0));
+  const metersRef = useRef({ ...INITIAL_METERS, bandGrDb: [...INITIAL_METERS.bandGrDb] });
   const sourceNodeRef = useRef(null);
 
   const [isRunning, setIsRunning] = useState(false);
@@ -65,10 +74,20 @@ export default function useAudioEngine(state) {
 
     workletNode.connect(ctx.destination);
 
-    // Listen for viz updates from worklet
+    // Listen for viz + meter updates from worklet (mutate refs; consumers rAF-poll)
     workletNode.port.onmessage = (e) => {
-      if (e.data.type === 'vizUpdate') {
-        vizWritePositionsRef.current = e.data.writePositions;
+      const d = e.data;
+      if (d.type === 'vizUpdate') {
+        vizWritePositionsRef.current = d.writePositions;
+      } else if (d.type === 'meters') {
+        const m = metersRef.current;
+        m.inPeakL = d.inPeakL; m.inPeakR = d.inPeakR;
+        m.inRmsL = d.inRmsL; m.inRmsR = d.inRmsR;
+        m.outPeakL = d.outPeakL; m.outPeakR = d.outPeakR;
+        m.outRmsL = d.outRmsL; m.outRmsR = d.outRmsR;
+        m.grDb = d.grDb;
+        // d.bandGrDb is a plain array; copy in place to keep ref stable
+        for (let i = 0; i < 5; i++) m.bandGrDb[i] = d.bandGrDb[i];
       }
     };
 
@@ -140,6 +159,7 @@ export default function useAudioEngine(state) {
     disconnectSource,
     getVizData,
     vizWritePositionsRef,
+    metersRef,
     audioCtxRef,
   };
 }
