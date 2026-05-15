@@ -674,16 +674,24 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     }
 
     // Viz data: SharedArrayBuffer or postMessage fallback
-    // Downsampled for longer time window (~6 seconds visible)
+    // Downsampled for longer time window (~6 seconds visible).
+    // Per-band layout:
+    //   [0 .. VIZ_SAMPLES_PER_BAND)               band peak ring buffer
+    //   [VIZ_SAMPLES_PER_BAND .. 2*VIZ_SAMPLES)   delta peak ring buffer (|wet-dry|)
+    //   [2*VIZ_SAMPLES]                           write position (shared by both rings)
+    //   [2*VIZ_SAMPLES + 1]                       reserved
     this.vizSab = opts.vizSharedBuffer || null;
     this.vizView = this.vizSab ? new Float32Array(this.vizSab) : null;
     this.vizWritePos = new Int32Array(5).fill(0); // per-band write position
     this.vizSamplesPerBand = 1024;
+    this.vizFloatsPerBand = this.vizSamplesPerBand * 2 + 2;
+    this.vizDeltaOffset = this.vizSamplesPerBand;
     this.vizBlockCounter = 0;
-    
+
     // Downsampling: accumulate peaks over N samples before writing
     this.vizDownsampleFactor = 256; // ~6 seconds visible at 44.1kHz with 1024 samples
-    this.vizPeakAccum = new Float32Array(5).fill(0); // peak accumulator per band
+    this.vizPeakAccum = new Float32Array(5).fill(0); // peak accumulator per band (input)
+    this.vizDeltaPeakAccum = new Float32Array(5).fill(0); // peak |wet-dry| per band
     this.vizSampleCount = new Int32Array(5).fill(0); // samples since last viz write
 
     // Apply initial params
@@ -968,11 +976,21 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       bandsR[4] = remainR;
 
       // 3. Process each band
+      // NOTE on multiband sum-flat: the LR4 cascade above produces 5 bands
+      // whose linear sum is mathematically identical to the input (LR4 has
+      // |LP|+|HP|=1 in-phase at every frequency, so each cascaded split
+      // collapses back). With every band at default (attack=sustain=0,
+      // mix=100, gain=0dB) every band processor returns its input unchanged,
+      // so the wetL/wetR accumulator below equals sampleL/sampleR — the full
+      // spectrum is preserved no matter where the crossover points sit.
       let wetL = 0;
       let wetR = 0;
       for (let i = 0; i < 5; i++) {
         const bL = bandsL[i];
         const bR = bandsR[i];
+        let procL = bL;
+        let procR = bR;
+        let bandActive = false;
 
         // Solo/bypass logic
         if (this.bypassState[i]) {
@@ -985,8 +1003,11 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
           this.bandProcessorsL[i].processSample(bL);
           this.bandProcessorsR[i].processSample(bR);
         } else {
-          wetL += this.bandProcessorsL[i].processSample(bL);
-          wetR += this.bandProcessorsR[i].processSample(bR);
+          procL = this.bandProcessorsL[i].processSample(bL);
+          procR = this.bandProcessorsR[i].processSample(bR);
+          wetL += procL;
+          wetR += procR;
+          bandActive = true;
         }
 
         // Per-band GR tracking (read after processing — gainSmooth is the
@@ -1005,18 +1026,36 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
           if (absSample > this.vizPeakAccum[i]) {
             this.vizPeakAccum[i] = absSample;
           }
+
+          // Per-band delta peak (|processed - input|) — drives the rectified
+          // delta strip drawn at the bottom of each waveform when the user
+          // toggles the global Delta view. Only meaningful when the band is
+          // actively processed; bypass/mute → 0.
+          if (bandActive) {
+            const dL = procL - bL;
+            const dR = procR - bR;
+            const adL = dL >= 0 ? dL : -dL;
+            const adR = dR >= 0 ? dR : -dR;
+            const absDelta = adL > adR ? adL : adR;
+            if (absDelta > this.vizDeltaPeakAccum[i]) {
+              this.vizDeltaPeakAccum[i] = absDelta;
+            }
+          }
+
           this.vizSampleCount[i]++;
 
           // Write downsampled peak when we've accumulated enough samples
           if (this.vizSampleCount[i] >= this.vizDownsampleFactor) {
-            const bandOffset = i * (this.vizSamplesPerBand + 2);
+            const bandOffset = i * this.vizFloatsPerBand;
             const wp = this.vizWritePos[i];
             this.vizView[bandOffset + wp] = this.vizPeakAccum[i];
+            this.vizView[bandOffset + this.vizDeltaOffset + wp] = this.vizDeltaPeakAccum[i];
             this.vizWritePos[i] = (wp + 1) % this.vizSamplesPerBand;
-            this.vizView[bandOffset + this.vizSamplesPerBand] = this.vizWritePos[i];
+            this.vizView[bandOffset + this.vizSamplesPerBand * 2] = this.vizWritePos[i];
 
             // Reset accumulators
             this.vizPeakAccum[i] = 0;
+            this.vizDeltaPeakAccum[i] = 0;
             this.vizSampleCount[i] = 0;
           }
         }

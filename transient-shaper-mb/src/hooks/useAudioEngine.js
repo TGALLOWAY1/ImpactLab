@@ -2,8 +2,10 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 
 const VIZ_SAMPLES_PER_BAND = 1024; // Downsampled peaks, not raw samples
 const NUM_BANDS = 5;
-// Per band: 1024 peaks + 1 write position + 1 reserved = 1026 floats
-const FLOATS_PER_BAND = VIZ_SAMPLES_PER_BAND + 2;
+// Per band: 1024 band peaks + 1024 delta peaks + 2 (writePos + reserved)
+// Layout MUST stay in sync with the worklet (vizFloatsPerBand / vizDeltaOffset).
+const FLOATS_PER_BAND = VIZ_SAMPLES_PER_BAND * 2 + 2;
+const VIZ_DELTA_OFFSET = VIZ_SAMPLES_PER_BAND;
 const TOTAL_VIZ_FLOATS = NUM_BANDS * FLOATS_PER_BAND;
 
 const INITIAL_METERS = {
@@ -128,12 +130,19 @@ export default function useAudioEngine(state) {
     });
   }, [state]);
 
-  // Get viz data for a specific band (called from useRealtimeWaveform)
+  // Get viz data for a specific band (called from useRealtimeWaveform).
+  // Returns both the band peak ring and the per-band delta peak ring as
+  // independent Float32Array copies.
   const getVizData = useCallback((bandIndex) => {
     if (!vizViewRef.current) return null;
     const offset = bandIndex * FLOATS_PER_BAND;
-    // Return a copy of the band's viz samples
-    return vizViewRef.current.slice(offset, offset + VIZ_SAMPLES_PER_BAND);
+    return {
+      samples: vizViewRef.current.slice(offset, offset + VIZ_SAMPLES_PER_BAND),
+      delta: vizViewRef.current.slice(
+        offset + VIZ_DELTA_OFFSET,
+        offset + VIZ_DELTA_OFFSET + VIZ_SAMPLES_PER_BAND,
+      ),
+    };
   }, []);
 
   // Cleanup

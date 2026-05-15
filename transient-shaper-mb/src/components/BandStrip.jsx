@@ -1,17 +1,19 @@
 import React from 'react';
 import { colors, sizes } from '../styles/theme';
 import { SET_BAND_PARAM, TOGGLE_SOLO, TOGGLE_BYPASS, RESET_BAND } from '../App';
+import { formatBandRange } from '../constants/bands';
 import RotaryKnob from './ui/RotaryKnob';
 import VerticalSlider from './ui/VerticalSlider';
 import ToggleButton from './ui/ToggleButton';
 import WaveformCanvas from './WaveformCanvas';
 import useMeters, { grDbToHeight } from '../hooks/useMeters';
 
-export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispatch, getVizData, vizWritePositionsRef, metersRef, isRunning, waveformData, getPlaybackPosition, isPlaying }) {
+export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispatch, getVizData, vizWritePositionsRef, metersRef, isRunning, waveformData, getPlaybackPosition, isPlaying, crossoverFreqs, showDelta }) {
   const setBandParam = (param, value) => dispatch({ type: SET_BAND_PARAM, bandId: band.id, param, value });
   const meters = useMeters(metersRef, isRunning);
   const grDb = meters && meters.bandGrDb ? meters.bandGrDb[bandIndex] : 0;
   const grIntensity = grDbToHeight(grDb, -6); // 0..1, full at -6 dB
+  const range = formatBandRange(bandIndex, crossoverFreqs);
 
   return (
     <div
@@ -30,7 +32,7 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
       <div style={{ width: sizes.controlsPanelWidth, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '8px 10px', gap: 10, borderRight: `1px solid ${band.colorDim}` }}>
         <div style={{ width: 120 }}>
           <div style={{ color: band.color, fontSize: 30, lineHeight: 1, fontWeight: 600 }}>{band.label.toUpperCase()}</div>
-          <div style={{ color: '#7e8ead', fontSize: 13, marginTop: 2 }}>{band.range}</div>
+          <div style={{ color: '#7e8ead', fontSize: 13, marginTop: 2 }}>{range}</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -86,6 +88,7 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
           waveformData={waveformData}
           getPlaybackPosition={getPlaybackPosition}
           isPlaying={isPlaying}
+          showDelta={showDelta}
         />
       </div>
     </div>
