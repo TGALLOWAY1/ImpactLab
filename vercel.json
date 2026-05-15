@@ -1,0 +1,15 @@
+{
+  "buildCommand": "cd transient-shaper-mb && npm install && npm run build",
+  "outputDirectory": "transient-shaper-mb/dist",
+  "installCommand": "echo skip-root-install",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+      ]
+    }
+  ]
+}
