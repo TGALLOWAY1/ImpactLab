@@ -27,7 +27,6 @@ export default function GlobalControls({ state, dispatch }) {
       }}
     >
       <RotaryKnob value={state.inputGain} min={-30} max={12} label="Input" color="#fff" size="sm" defaultValue={0} onChange={(v) => setParam('inputGain', v)} />
-      <RotaryKnob value={state.outputGain} min={-30} max={12} label="Output" color="#fff" size="sm" defaultValue={0} onChange={(v) => setParam('outputGain', v)} />
 
       <SpeedSelector value={state.detectionSpeed} onChange={(v) => setParam('detectionSpeed', v)} />
       <DetectionMethodSelector value={state.detectionMethod || 'dual-envelope'} onChange={(v) => setParam('detectionMethod', v)} />

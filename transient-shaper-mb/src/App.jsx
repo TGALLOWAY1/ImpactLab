@@ -226,6 +226,8 @@ function MainApp() {
           waveformData={source.waveformData}
           getPlaybackPosition={source.getPlaybackPosition}
           isPlaying={source.isPlaying}
+          crossoverFreqs={state.global.crossoverFreqs}
+          showDelta={state.global.delta}
         />
         <RightPanel
           state={state.global}
