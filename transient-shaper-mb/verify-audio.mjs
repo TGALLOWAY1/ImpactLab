@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import { setTimeout as sleep } from 'timers/promises';
 import { fileURLToPath } from 'url';
@@ -51,8 +51,13 @@ const peakMeterOver = async (ms, selector) => {
 console.log('\n=== Audio engine regression ===');
 await page.locator('button[aria-label="Start the audio engine"]').click();
 await sleep(1500);
-check('engine started (power button flips to pressed)',
-  await page.locator('button[aria-pressed="true"][aria-label="Audio engine running"]').count() === 1);
+// The power button is a one-way start, so once running it is a status
+// indicator, not a toggle that promises a stop action.
+check('engine started (power button becomes a running indicator)',
+  await page.locator('button[aria-label="Audio engine is running"][disabled]').count() === 1);
+check('power button does not claim to be a toggle',
+  await page.locator('button[aria-label="Audio engine is running"]')
+    .evaluate((el) => el.getAttribute('aria-pressed') === null));
 
 await page.locator('input[type="file"]').setInputFiles(FIXTURE);
 await sleep(2000);

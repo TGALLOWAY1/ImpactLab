@@ -5,7 +5,7 @@
 //   explainer-annotated.png  — 1280×900, raw canvas + SVG callouts + caption
 //
 // Usage:  node screenshot-explainer-annotated.mjs
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import { setTimeout as sleep } from 'timers/promises';
 import { readFileSync } from 'fs';

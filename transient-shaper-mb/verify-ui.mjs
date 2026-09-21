@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import { setTimeout as sleep } from 'timers/promises';
 import { fileURLToPath } from 'url';
@@ -201,6 +201,33 @@ const minFont = await page.evaluate(() => Math.min(...[...document.querySelector
   .filter((el) => el.children.length === 0 && el.textContent.trim())
   .map((el) => parseFloat(getComputedStyle(el).fontSize))));
 check(`smallest rendered text is ${minFont}px (>= 10)`, minFont >= 10);
+
+console.log('\n=== 11. Below the minimum scale, nothing is pushed out of reach ===');
+// The stage stops shrinking at minScale, so on a very small viewport it is
+// larger than the scrollport and the overflow has to stay reachable.
+//
+// This asserts the requirement, not a fix: Chromium already start-aligns an
+// overflowing item in a scroll container, so it passes with plain `center` too.
+// The shell uses `safe center` to state the intent for engines that follow the
+// unsafe default.
+await page.setViewportSize({ width: 520, height: 380 });
+await sleep(600);
+const tiny = await page.evaluate(() => {
+  const stage = document.querySelector('[class*="stage"]');
+  const vp = document.querySelector('[class*="viewport"]');
+  const r = stage.getBoundingClientRect();
+  return {
+    scale: parseFloat(getComputedStyle(vp).getPropertyValue('--plugin-scale')),
+    left: Math.round(r.left),
+    top: Math.round(r.top),
+    canScrollX: vp.scrollWidth > vp.clientWidth,
+  };
+});
+check(`scale clamped at the floor (${tiny.scale})`, tiny.scale === 0.5);
+check(`left edge stays reachable (x = ${tiny.left}, must be >= 0)`, tiny.left >= 0);
+check(`top edge stays reachable (y = ${tiny.top}, must be >= 0)`, tiny.top >= 0);
+check('the overflow is scrollable rather than clipped', tiny.canScrollX);
+await page.setViewportSize({ width: 1440, height: 900 });
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 await browser.close(); server.kill();

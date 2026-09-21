@@ -11,9 +11,21 @@
   position: fixed;
   inset: 0;
   display: grid;
-  place-items: center;
+  /*
+   * `safe` falls back to start alignment on any axis where the item overflows,
+   * which matters below --min-scale: the stage stops shrinking there and can be
+   * larger than the scrollport. Unsafe centering would put its start edge at a
+   * negative offset that overflow: auto cannot scroll back to, making the left
+   * or top of the plugin unreachable.
+   *
+   * Chromium already applies safe alignment inside scroll containers, so this
+   * is belt-and-braces there rather than a fix for an observed bug (verified
+   * with an isolated probe: `center` and `safe center` both give left = 0).
+   * It costs nothing and states the requirement explicitly for engines that
+   * follow the unsafe default.
+   */
+  place-items: safe center;
   background: var(--page-bg);
-  /* Below --min-scale the stage stops shrinking, so scrolling must still work. */
   overflow: auto;
 }
 

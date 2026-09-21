@@ -116,10 +116,14 @@ Each component has a sibling `*.module.css`. Every theme-able value lives in
 
 ### Verification
 
-There is no unit-test suite yet (tracked in `/product/todos`). What exists is a
-pair of Playwright scripts that drive the real app:
+`npm test` runs the DSP regression suite. Alongside it, two Playwright scripts
+drive the real app in a browser:
 
 ```bash
+npm install           # Playwright is a declared devDependency
+npx playwright install chromium   # unless PLAYWRIGHT_BROWSERS_PATH is already set
+
+npm test              # DSP regression suite (13 checks)
 npm run verify        # both of the below
 npm run verify:ui     # ARIA coverage, the full keyboard contract, pointer drag,
                       # crossover log mapping, multiband-link float drift,

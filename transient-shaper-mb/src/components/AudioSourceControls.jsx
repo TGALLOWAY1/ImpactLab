@@ -67,10 +67,15 @@ export default function AudioSourceControls({
         type="button"
         onClick={onInitialize}
         className={`${styles.btn} ${styles.power}`}
-        aria-pressed={isInitialized}
+        // NOT aria-pressed. `initialize()` is one-way — it returns the existing
+        // context and never sets isInitialized back to false — so announcing a
+        // toggle would promise a stop action that does not exist. Once running,
+        // the control has done its job and becomes a status indicator.
+        disabled={isInitialized}
+        data-running={isInitialized}
         // The glyph is the whole button content, so it needs a real name.
-        aria-label={isInitialized ? 'Audio engine running' : 'Start the audio engine'}
-        title={isInitialized ? 'Audio engine running' : 'Initialize audio engine'}
+        aria-label={isInitialized ? 'Audio engine is running' : 'Start the audio engine'}
+        title={isInitialized ? 'Audio engine is running' : 'Initialize audio engine'}
       >
         <span aria-hidden="true">{isInitialized ? '◉' : '⭘'}</span>
       </button>

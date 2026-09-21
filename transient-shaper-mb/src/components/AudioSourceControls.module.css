@@ -48,10 +48,17 @@
   line-height: 1;
 }
 
-.power[aria-pressed='true'] {
+.power[data-running='true'] {
   background: var(--accent-clip);
   border-color: var(--accent-clip);
   color: var(--text-on-accent);
+}
+
+/* Running is a success state, not an unavailable one — keep it fully legible
+   even though the button is disabled. */
+.power[data-running='true']:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .transport[data-playing='true'] {
