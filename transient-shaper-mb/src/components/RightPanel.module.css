@@ -1,0 +1,87 @@
+.rail {
+  width: var(--meter-rail-w);
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--rail-bg-top), var(--rail-bg-bottom));
+  padding: var(--sp-6) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-height: 0;
+}
+
+.meters {
+  /* Without this the cells collapse to their label height and the bars vanish. */
+  flex: 1;
+  display: flex;
+  justify-content: space-evenly;
+  gap: var(--sp-4);
+  min-height: 0;
+}
+
+.meterCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 0;
+}
+
+.meterLabel {
+  font-size: var(--fs-label);
+  color: var(--text-label);
+  letter-spacing: var(--ls-label);
+}
+
+.meter {
+  width: 16px;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--meter-frame);
+  background: var(--waveform-bg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 10px rgb(0 0 0 / 0.55);
+}
+
+/*
+ * The gradient is anchored to the FULL height of the bar and revealed from the
+ * bottom by clip-path, so a given colour always means the same level.
+ *
+ * Previously the gradient was painted on a div whose HEIGHT was the level, so
+ * it scaled with the fill and the top of the bar was clipping-red at every
+ * level — a -40 dB signal drew a tiny bar tipped in red.
+ */
+.meterFill {
+  position: absolute;
+  inset: 1px;
+  clip-path: inset(var(--meter-top, 100%) 0 0 0);
+  transition: clip-path var(--dur-meter);
+}
+
+.levelFill {
+  background: linear-gradient(
+    180deg,
+    var(--meter-hot) 0%,
+    var(--meter-warm) 20%,
+    var(--meter-ok) 45%,
+    var(--meter-cool) 100%
+  );
+}
+
+.grFill {
+  background: linear-gradient(
+    180deg,
+    var(--meter-hot) 0%,
+    var(--meter-warm) 60%,
+    var(--meter-warm) 100%
+  );
+}
+
+.caption {
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}

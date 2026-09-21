@@ -1,0 +1,66 @@
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+/*
+ * The global focus outline is a rectangle, which looks wrong around a round
+ * control — so it is replaced here by the circular .focusRing drawn in the SVG.
+ * This suppresses an indicator only because it substitutes an equivalent one.
+ */
+.knob:focus-visible {
+  outline: none;
+}
+
+.focusRing {
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+
+.knob:focus-visible .focusRing {
+  opacity: 1;
+}
+
+.track {
+  stroke: var(--knob-track);
+}
+
+.valueArc {
+  stroke: var(--knob-accent, var(--band-accent, var(--accent-default)));
+}
+
+.pointer {
+  stroke: var(--knob-pointer);
+}
+
+.hub {
+  fill: var(--knob-track);
+}
+
+.label {
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  color: var(--text-label);
+  letter-spacing: var(--ls-label);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.value {
+  font-size: var(--fs-value);
+  color: var(--text-secondary);
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.knob[data-dragging] .value,
+.knob:focus-visible .value {
+  color: var(--knob-accent, var(--band-accent, var(--accent-default)));
+}

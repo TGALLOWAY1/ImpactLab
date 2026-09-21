@@ -1,158 +1,144 @@
-import React, { useState, useId } from 'react';
-import useKnobDrag from '../../hooks/useKnobDrag';
+import React, { useId } from 'react';
+import useParameterControl from '../../hooks/useParameterControl';
+import styles from './RotaryKnob.module.css';
 
-// Phase 5.1 — SVG rotary knob with arc indicator, drag interaction, bipolar support
-export default function RotaryKnob({ value, min, max, label, color = '#fff', size = 'md', onChange, defaultValue }) {
+const DIAMETERS = { sm: 28, md: 36, lg: 48 };
+
+// 270-degree sweep, from 7 o'clock round to 5 o'clock.
+const START_ANGLE = 135;
+const END_ANGLE = 405;
+const TOTAL_ARC = END_ANGLE - START_ANGLE;
+
+export default function RotaryKnob({
+  value,
+  min,
+  max,
+  label,
+  size = 'md',
+  onChange,
+  defaultValue,
+  step = 1,
+  largeStep = 10,
+  fineStep = 0.1,
+  format,
+  ariaLabel,
+  showValue = true,
+}) {
   const gradId = useId();
-  const [hovering, setHovering] = useState(false);
-  const diameters = { sm: 28, md: 36, lg: 48 };
-  const d = diameters[size];
+  const d = DIAMETERS[size] ?? DIAMETERS.md;
   const r = d / 2;
   const strokeWidth = 2;
   const arcRadius = r - strokeWidth - 2;
   const cx = r;
   const cy = r;
 
-  // Arc spans 270 degrees: from 135deg (7 o'clock) to 405deg (5 o'clock)
-  const startAngle = 135;
-  const endAngle = 405;
-  const totalArc = endAngle - startAngle; // 270
-
   const isBipolar = min < 0 && max > 0;
-  const normalized = (value - min) / (max - min); // 0 to 1
-  const valueAngle = startAngle + normalized * totalArc;
-
-  // Center angle for bipolar (where 0 is)
+  const normalized = (value - min) / (max - min);
+  const valueAngle = START_ANGLE + normalized * TOTAL_ARC;
   const centerNormalized = isBipolar ? (0 - min) / (max - min) : 0;
-  const centerAngle = startAngle + centerNormalized * totalArc;
+  const centerAngle = START_ANGLE + centerNormalized * TOTAL_ARC;
 
-  function polarToCartesian(angle) {
+  const resolvedDefault =
+    defaultValue !== undefined ? defaultValue : isBipolar ? 0 : (min + max) / 2;
+
+  const { rootProps, formatted } = useParameterControl({
+    value,
+    min,
+    max,
+    step,
+    largeStep,
+    fineStep,
+    defaultValue: resolvedDefault,
+    orientation: 'vertical',
+    mode: 'delta',
+    sensitivity: size === 'lg' ? 0.3 : 0.5,
+    label: ariaLabel || label,
+    format: format || ((v) => String(Math.round(v))),
+    onChange,
+  });
+
+  function polarToCartesian(angle, radius) {
     const rad = ((angle - 90) * Math.PI) / 180;
-    return {
-      x: cx + arcRadius * Math.cos(rad),
-      y: cy + arcRadius * Math.sin(rad),
-    };
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
   }
 
   function describeArc(start, end) {
     if (Math.abs(end - start) < 0.5) return '';
-    const s = polarToCartesian(start);
-    const e = polarToCartesian(end);
+    const s = polarToCartesian(start, arcRadius);
+    const e = polarToCartesian(end, arcRadius);
     const largeArc = end - start > 180 ? 1 : 0;
     return `M ${s.x} ${s.y} A ${arcRadius} ${arcRadius} 0 ${largeArc} 1 ${e.x} ${e.y}`;
   }
 
-  // Background track arc (full range)
-  const trackPath = describeArc(startAngle, endAngle);
+  const trackPath = describeArc(START_ANGLE, END_ANGLE);
+  const valuePath = isBipolar
+    ? value >= 0
+      ? describeArc(centerAngle, valueAngle)
+      : describeArc(valueAngle, centerAngle)
+    : describeArc(START_ANGLE, valueAngle);
 
-  // Value arc
-  let valuePath;
-  if (isBipolar) {
-    if (value >= 0) {
-      valuePath = describeArc(centerAngle, valueAngle);
-    } else {
-      valuePath = describeArc(valueAngle, centerAngle);
-    }
-  } else {
-    valuePath = describeArc(startAngle, valueAngle);
-  }
-
-  // Pointer line from center toward value angle
-  const pointerLength = arcRadius - 4;
-  const pointerEnd = (() => {
-    const rad = ((valueAngle - 90) * Math.PI) / 180;
-    return {
-      x: cx + pointerLength * Math.cos(rad),
-      y: cy + pointerLength * Math.sin(rad),
-    };
-  })();
-
-  const resetValue = defaultValue !== undefined ? defaultValue : (isBipolar ? 0 : (min + max) / 2);
-
-  const { onMouseDown, onDoubleClick } = useKnobDrag({
-    value,
-    min,
-    max,
-    onChange,
-    sensitivity: size === 'lg' ? 0.3 : 0.5,
-  });
-
-  // Override double-click to use proper default
-  const handleDoubleClick = () => onChange(resetValue);
-
-  // Format display value
-  const displayValue = Number.isInteger(value) ? value : value.toFixed(1);
+  const pointerEnd = polarToCartesian(valueAngle, arcRadius - 4);
 
   return (
-    <div
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, userSelect: 'none' }}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
-    >
-      <svg
-        width={d}
-        height={d}
-        style={{ cursor: 'pointer', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.4))' }}
-        onMouseDown={onMouseDown}
-        onDoubleClick={handleDoubleClick}
-      >
-        {/* Knob body with radial gradient */}
+    // rootProps go on the wrapper, not the <svg>: outline behaviour on SVG is
+    // inconsistent across browsers, and the wrapper gives a larger hit target.
+    <div className={styles.knob} {...rootProps}>
+      <svg width={d} height={d} aria-hidden="true" focusable="false">
         <defs>
           <radialGradient id={gradId} cx="40%" cy="35%">
-            <stop offset="0%" stopColor="#3A3A44" />
-            <stop offset="100%" stopColor="#1E1E24" />
+            <stop offset="0%" stopColor="var(--control-bg-raised)" />
+            <stop offset="100%" stopColor="var(--control-bg)" />
           </radialGradient>
         </defs>
+
         <circle cx={cx} cy={cy} r={r - 2} fill={`url(#${gradId})`} />
 
-        {/* Track arc (background) */}
-        <path d={trackPath} fill="none" stroke="#333" strokeWidth={strokeWidth} strokeLinecap="round" />
+        {/* The range track. Previously #333 at 1.4:1 — technically drawn, but
+            invisible, so the knob showed its fill with no reference for where
+            that sat within the range. */}
+        <path
+          className={styles.track}
+          d={trackPath}
+          fill="none"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
 
-        {/* Value arc */}
         {valuePath && (
-          <path d={valuePath} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <path
+            className={styles.valueArc}
+            d={valuePath}
+            fill="none"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
         )}
 
-        {/* Pointer line */}
         <line
+          className={styles.pointer}
           x1={cx}
           y1={cy}
           x2={pointerEnd.x}
           y2={pointerEnd.y}
-          stroke="#ddd"
           strokeWidth={1.5}
           strokeLinecap="round"
         />
+        <circle className={styles.hub} cx={cx} cy={cy} r={1.5} />
 
-        {/* Center dot */}
-        <circle cx={cx} cy={cy} r={1.5} fill="#666" />
-
-        {/* Value text on hover */}
-        {hovering && (
-          <text
-            x={cx}
-            y={cy + r + 1}
-            textAnchor="middle"
-            fontSize={8}
-            fill={color}
-            fontFamily="sans-serif"
-          >
-            {displayValue}
-          </text>
-        )}
+        {/* Circular stand-in for the rectangular focus outline. */}
+        <circle
+          className={styles.focusRing}
+          cx={cx}
+          cy={cy}
+          r={r - 1}
+          fill="none"
+          stroke="var(--focus-ring)"
+          strokeWidth={2}
+        />
       </svg>
-      {label && (
-        <span style={{
-          fontSize: 9,
-          textTransform: 'uppercase',
-          color: '#888',
-          letterSpacing: '1px',
-          lineHeight: 1,
-          whiteSpace: 'nowrap',
-        }}>
-          {label}
-        </span>
-      )}
+
+      {label && <span className={styles.label}>{label}</span>}
+      {showValue && <span className={styles.value}>{formatted}</span>}
     </div>
   );
 }

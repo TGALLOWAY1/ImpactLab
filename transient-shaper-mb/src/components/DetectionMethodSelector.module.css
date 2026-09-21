@@ -1,0 +1,55 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.heading {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: var(--ls-label);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.option {
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--text-inactive);   /* 4.9:1 — the old #555 was about 2.4:1 */
+  font-family: inherit;
+  font-size: var(--fs-label);
+  cursor: pointer;
+  padding: 1px var(--sp-3) 1px 14px;
+  text-align: left;
+  white-space: nowrap;
+  position: relative;
+  transition: color var(--dur-fast) ease;
+}
+
+.option:hover {
+  color: var(--text-secondary);
+}
+
+.option[aria-checked='true'] {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/*
+ * The selection marker is a pseudo-element, so screen readers announce the
+ * option name without a stray "▸" character in front of it. The old version
+ * also padded unselected rows with two literal spaces, which do not align in a
+ * proportional typeface.
+ */
+.option[aria-checked='true']::before {
+  content: '\25B8';
+  position: absolute;
+  left: var(--sp-2);
+}

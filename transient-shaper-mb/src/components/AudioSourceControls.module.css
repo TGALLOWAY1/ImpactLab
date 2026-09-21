@@ -1,0 +1,81 @@
+/*
+ * Prototype transport bar. Note this sits ABOVE the plugin's own header, which
+ * is backwards for a shipping product — it is dev chrome in front of product
+ * chrome. Relocating it is tracked in /product/todos, not done here.
+ */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-3) var(--sp-6);
+  background: var(--panel-bg-bottom);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--fs-label);
+  color: var(--text-primary);
+  min-height: 34px;
+  flex-shrink: 0;
+}
+
+.btn {
+  border: 1px solid var(--border-strong);
+  background: var(--control-bg-raised);
+  color: var(--text-secondary);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-5);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--menu-item-active-bg);
+  color: var(--text-primary);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.power {
+  min-width: 32px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.power[aria-pressed='true'] {
+  background: var(--accent-clip);
+  border-color: var(--accent-clip);
+  color: var(--text-on-accent);
+}
+
+.transport[data-playing='true'] {
+  background: var(--meter-hot);
+  border-color: var(--meter-hot);
+  color: var(--text-on-accent);
+}
+
+.fileName {
+  color: var(--text-label);
+  font-size: var(--fs-micro);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.5px;
+}
+
+.hiddenInput {
+  display: none;
+}

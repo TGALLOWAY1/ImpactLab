@@ -1,54 +1,108 @@
 import React from 'react';
-import { sizes } from '../styles/theme';
 import { SET_GLOBAL_PARAM } from '../App';
 import RotaryKnob from './ui/RotaryKnob';
 import SpeedSelector from './ui/SpeedSelector';
 import ToggleButton from './ui/ToggleButton';
 import CrossoverEditor from './CrossoverEditor';
 import DetectionMethodSelector from './DetectionMethodSelector';
-import { BANDS } from '../constants/bands';
+import styles from './GlobalControls.module.css';
+
+const fmtDb = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
+const fmtPercent = (v) => `${Math.round(v)}%`;
 
 export default function GlobalControls({ state, dispatch }) {
   const setParam = (param, value) => dispatch({ type: SET_GLOBAL_PARAM, param, value });
 
   return (
-    <div
-      style={{
-        height: sizes.globalBarHeight,
-        background: 'linear-gradient(180deg, #101a2d, #0c1424)',
-        borderTop: '1px solid #243148',
-        borderBottom: '1px solid #243148',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 12px',
-        flexShrink: 0,
-        gap: 10,
-      }}
-    >
-      <RotaryKnob value={state.inputGain} min={-30} max={12} label="Input" color="#fff" size="sm" defaultValue={0} onChange={(v) => setParam('inputGain', v)} />
+    <div className={styles.bar}>
+      <div className={styles.gainPair} role="group" aria-label="Gain staging">
+        <RotaryKnob
+          value={state.inputGain}
+          min={-30}
+          max={12}
+          label="Input"
+          ariaLabel="Input gain"
+          size="sm"
+          defaultValue={0}
+          step={0.5}
+          largeStep={6}
+          format={fmtDb}
+          onChange={(v) => setParam('inputGain', v)}
+        />
+        <RotaryKnob
+          value={state.outputGain}
+          min={-30}
+          max={12}
+          label="Output"
+          ariaLabel="Output gain"
+          size="sm"
+          defaultValue={0}
+          step={0.5}
+          largeStep={6}
+          format={fmtDb}
+          onChange={(v) => setParam('outputGain', v)}
+        />
+      </div>
 
       <SpeedSelector value={state.detectionSpeed} onChange={(v) => setParam('detectionSpeed', v)} />
-      <DetectionMethodSelector value={state.detectionMethod || 'dual-envelope'} onChange={(v) => setParam('detectionMethod', v)} />
+      <DetectionMethodSelector
+        value={state.detectionMethod || 'dual-envelope'}
+        onChange={(v) => setParam('detectionMethod', v)}
+      />
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', color: state.multibandLink ? '#fff' : '#7d8ca8', cursor: 'pointer', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+      <label className={styles.link}>
         Multiband Link
-        <input type="checkbox" checked={state.multibandLink} onChange={() => setParam('multibandLink', !state.multibandLink)} style={{ accentColor: '#5ECA89', cursor: 'pointer' }} />
+        <input
+          type="checkbox"
+          checked={state.multibandLink}
+          onChange={() => setParam('multibandLink', !state.multibandLink)}
+        />
       </label>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{ fontSize: 8, color: '#7d8ca8', textTransform: 'uppercase' }}>Dry</span>
-        <RotaryKnob value={state.mix} min={0} max={100} label="Mix" color="#fff" size="lg" defaultValue={100} onChange={(v) => setParam('mix', v)} />
-        <span style={{ fontSize: 8, color: '#7d8ca8', textTransform: 'uppercase' }}>Wet</span>
+      <div className={styles.mixGroup}>
+        <span className={styles.mixEdge} aria-hidden="true">Dry</span>
+        <RotaryKnob
+          value={state.mix}
+          min={0}
+          max={100}
+          label="Mix"
+          ariaLabel="Dry/wet mix"
+          size="lg"
+          defaultValue={100}
+          format={fmtPercent}
+          onChange={(v) => setParam('mix', v)}
+        />
+        <span className={styles.mixEdge} aria-hidden="true">Wet</span>
       </div>
 
-      <div style={{ flex: 1, maxWidth: 250, minWidth: 140 }}>
-        <CrossoverEditor freqs={state.crossoverFreqs} bands={BANDS} onChange={(freqs) => setParam('crossoverFreqs', freqs)} />
+      <div className={styles.crossover}>
+        <CrossoverEditor
+          freqs={state.crossoverFreqs}
+          onChange={(freqs) => setParam('crossoverFreqs', freqs)}
+        />
       </div>
 
-      <ToggleButton active={state.delta} label="Delta" color="#9a6dff" onClick={() => setParam('delta', !state.delta)} />
-      <ToggleButton active={state.softClip} label="Soft Clip" color="#5ECA89" onClick={() => setParam('softClip', !state.softClip)} />
-      <ToggleButton active={state.lookahead} label="Lookahead" color="#5BC0EB" onClick={() => setParam('lookahead', !state.lookahead)} />
+      <div className={styles.toggles}>
+        <ToggleButton
+          active={state.delta}
+          label="Delta"
+          ariaLabel="Delta — hear only the processed difference"
+          style={{ '--toggle-accent': 'var(--accent-delta)' }}
+          onClick={() => setParam('delta', !state.delta)}
+        />
+        <ToggleButton
+          active={state.softClip}
+          label="Soft Clip"
+          style={{ '--toggle-accent': 'var(--accent-clip)' }}
+          onClick={() => setParam('softClip', !state.softClip)}
+        />
+        <ToggleButton
+          active={state.lookahead}
+          label="Lookahead"
+          style={{ '--toggle-accent': 'var(--accent-lookahead)' }}
+          onClick={() => setParam('lookahead', !state.lookahead)}
+        />
+      </div>
     </div>
   );
 }

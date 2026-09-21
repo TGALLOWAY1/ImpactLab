@@ -1,0 +1,88 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  user-select: none;
+}
+
+.trackArea {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+/* Fixed width replaces the old magic `marginLeft: 18` on the track. */
+.ticks {
+  position: relative;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.tick {
+  position: absolute;
+  right: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The interactive element is this 24px-wide area, not the 6px visual track:
+ * a 6px-wide pointer target fails the 24x24 minimum by a wide margin.
+ */
+.hitArea {
+  width: 24px;
+  height: var(--track-h);
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: var(--r-sm);
+}
+
+.track {
+  position: relative;
+  width: 6px;
+  height: 100%;
+  background: var(--control-bg);
+  border: 1px solid var(--knob-track);
+  border-radius: var(--r-sm);
+}
+
+.fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--slider-accent, var(--band-accent, var(--accent-default)));
+  border-radius: 0 0 2px 2px;
+  opacity: 0.75;
+}
+
+.thumb {
+  position: absolute;
+  left: -4px;
+  width: 14px;
+  height: 6px;
+  background: var(--knob-pointer);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+
+.unit {
+  align-self: flex-end;
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.label {
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  color: var(--text-label);
+  letter-spacing: var(--ls-label);
+  line-height: 1;
+  white-space: nowrap;
+}

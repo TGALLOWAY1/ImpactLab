@@ -1,0 +1,37 @@
+/*
+ * Fit-to-viewport wrapper for the fixed-size plugin surface.
+ *
+ * The plugin is authored at one design resolution (--plugin-w x --plugin-h) and
+ * scaled uniformly to fit, mirroring how a JUCE AudioProcessorEditor scales via
+ * setScaleFactor / AffineTransform::scale. A fluid reflow would have no
+ * analogue in the host, so proportions are preserved instead.
+ */
+
+.viewport {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--page-bg);
+  /* Below --min-scale the stage stops shrinking, so scrolling must still work. */
+  overflow: auto;
+}
+
+/*
+ * LOAD-BEARING. `transform` does not affect layout: without this element the
+ * stage would still occupy its full unscaled size in flow, which mis-centers
+ * the plugin and produces phantom scrollbars. The sizer reserves exactly the
+ * *scaled* box.
+ */
+.sizer {
+  width: calc(var(--plugin-w) * var(--plugin-scale));
+  height: calc(var(--plugin-h) * var(--plugin-scale));
+}
+
+.stage {
+  width: var(--plugin-w);
+  height: var(--plugin-h);
+  transform: scale(var(--plugin-scale));
+  /* Pairs with .sizer — no centering maths needed. */
+  transform-origin: top left;
+}

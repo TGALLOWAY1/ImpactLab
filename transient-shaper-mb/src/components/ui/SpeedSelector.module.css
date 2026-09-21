@@ -1,0 +1,52 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.heading {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: var(--ls-label);
+}
+
+.options {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.option {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-inactive);   /* 4.9:1 — the old #555 was about 2.4:1 */
+  font-family: inherit;
+  font-size: var(--fs-label);
+  text-transform: capitalize;
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.option:hover {
+  color: var(--text-secondary);
+}
+
+/* Contrast between states comes from making the ACTIVE option brighter, not
+   from pushing the inactive one below the 4.5:1 threshold. */
+.option[aria-checked='true'] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-default);
+  font-weight: 600;
+}
+
+.icon {
+  font-size: 12px;
+  line-height: 1;
+}

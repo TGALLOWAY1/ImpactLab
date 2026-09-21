@@ -21,9 +21,9 @@
 - Crossovers and per-band parameters are controlled in UI state, consumed in DSP layer.
 
 ## Visual architecture
-- Combination of SVG controls, inline-style layout, and canvas waveform rendering.
+- Combination of SVG controls, CSS Modules over a `tokens.css` custom-property layer, and canvas waveform rendering.
 - Realtime path reads from SAB-backed buffers when available, otherwise degraded behavior.
 
 ## Architectural constraints
-- Fixed-size plugin canvas aesthetic (non-responsive primary layout).
+- Fixed authoring resolution (1400x860) scaled uniformly to fit the viewport by `PluginShell`, mirroring a JUCE editor's `setScaleFactor`; not a responsive reflow.
 - Browser-only prototype assumptions (COOP/COEP headers for SAB).

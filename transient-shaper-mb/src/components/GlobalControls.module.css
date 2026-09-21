@@ -1,0 +1,68 @@
+.bar {
+  height: var(--globalbar-h);
+  background: linear-gradient(180deg, var(--globalbar-bg-top), var(--globalbar-bg-bottom));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-5);
+  flex-shrink: 0;
+  gap: var(--sp-4);
+}
+
+/* Input and Output are a gain-staging pair and belong together. Output
+   previously lived alone in the right-hand meter rail. */
+.gainPair {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-5);
+}
+
+.mixGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.mixEdge {
+  font-size: var(--fs-micro);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-label);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  color: var(--text-label);
+  cursor: pointer;
+  letter-spacing: var(--ls-label);
+  white-space: nowrap;
+}
+
+.link:has(input:checked) {
+  color: var(--text-primary);
+}
+
+.link input {
+  accent-color: var(--accent-clip);
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.crossover {
+  flex: 1;
+  max-width: 250px;
+  min-width: 140px;
+}
+
+.toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}

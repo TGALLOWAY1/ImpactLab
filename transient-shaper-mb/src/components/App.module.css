@@ -1,0 +1,18 @@
+/* The plugin surface itself. Inside PluginShell's stage, this clipping IS the
+   plugin window — the host gives an editor a fixed rect and nothing escapes it. */
+.pluginRoot {
+  width: var(--plugin-w);
+  height: var(--plugin-h);
+  background: linear-gradient(180deg, var(--plugin-bg-top), var(--plugin-bg-bottom));
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}

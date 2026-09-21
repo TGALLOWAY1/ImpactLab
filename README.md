@@ -33,15 +33,17 @@ Each band has its own attack/sustain controls, output gain, solo, and bypass —
 ## Features
 
 - **5-band processing** with LR4 (Linkwitz-Riley 4th order) IIR crossovers for phase-coherent band splitting
-- **Per-band controls**: Attack amount & time, Sustain amount & time, Output gain, Solo, Bypass
+- **Per-band controls**: Attack amount & time, Sustain amount & time, Mix, Output gain, Solo, Bypass. The time knobs read out in resolved milliseconds rather than an abstract 0-100 scalar.
 - **Dual-envelope detection**: Separate fast and slow envelope followers for accurate transient/sustain separation
-- **3 transient modes**: Punch (aggressive), Snap (tight), Smooth (gentle) — each with tuned detection characteristics
+- **4 detection methods**: Dual Envelope, Peak vs RMS, Derivative, Energy Flux
 - **3 detection speeds**: Slow, Medium, Fast — scales all per-band time constants proportionally
 - **Multiband Link**: Adjust one band and all others follow proportionally, maintaining relative differences
 - **Draggable crossover editor**: Visual log-scale frequency display with draggable crossover points
 - **Per-band waveform display**: Real-time visualization of input, processed, and delta signals
 - **Global controls**: Input/Output gain, Dry/Wet mix, Soft Clip, Lookahead, Delta monitoring
-- **Preset browser** with navigation
+- **Preset picker** over 7 built-in presets, with A/B compare slots
+- **Keyboard and touch control of every parameter**: all 37 continuous controls are `role="slider"` with the WAI-ARIA slider key contract (arrows, Shift for fine, PageUp/Down, Home/End, Backspace to reset), driven by pointer events so touch and pen work
+- **Fit-to-viewport scaling**: the 1400x860 surface scales uniformly rather than reflowing, mirroring how a JUCE plugin editor scales in a host
 
 ## Technical Details
 
@@ -58,10 +60,14 @@ Each band has its own attack/sustain controls, output gain, solo, and bypass —
 | Band | Attack | Release |
 |------|--------|---------|
 | Sub | 5.0 ms | 200 ms |
-| Low | 3.0 ms | 150 ms |
-| Low-Mid | 1.0 ms | 80 ms |
+| Low | 2.0 ms | 150 ms |
+| Low-Mid | 1.0 ms | 100 ms |
 | High-Mid | 0.5 ms | 50 ms |
 | High | 0.2 ms | 30 ms |
+
+Source of truth: `BAND_TIME_DEFAULTS` in `src/constants/dspMapping.js`. The
+per-band time knobs scale these by `2^((value - 50) / 25)` (0.25x to 4x), and the
+detection-speed selector scales them again by 2.0 / 1.0 / 0.5.
 
 ### UI Prototype Stack
 
@@ -70,7 +76,7 @@ The current implementation is a **React UI prototype** that reproduces the full 
 - **React 18** with `useReducer` for centralized state management
 - **Vite 5** for fast development builds
 - **Zero external UI libraries** — all controls (rotary knobs, sliders, waveform canvases, crossover editor) are built from scratch with SVG and Canvas
-- **~1,150 lines** of source code across 17 modules
+- **CSS Modules over a custom-property token layer** (`src/styles/tokens.css`), which is what makes focus rings, hover states and `prefers-reduced-motion` expressible
 
 ### Project Structure
 
@@ -79,22 +85,49 @@ transient-shaper-mb/
 ├── src/
 │   ├── App.jsx                    # Root component + state reducer
 │   ├── components/
-│   │   ├── Header.jsx             # Top bar with preset browser
-│   │   ├── GlobalControls.jsx     # Global parameters + crossover display
+│   │   ├── PluginShell.jsx        # Fit-to-viewport scaling wrapper
+│   │   ├── Header.jsx             # Wordmark, preset picker, A/B, reset, bypass
+│   │   ├── AudioSourceControls.jsx# Prototype transport (power/load/play/export)
+│   │   ├── GlobalControls.jsx     # Global parameters + crossover editor
 │   │   ├── BandStrip.jsx          # Single band channel strip
 │   │   ├── BandStripList.jsx      # 5-band container
+│   │   ├── RightPanel.jsx         # IN/OUT/GR metering rail
 │   │   ├── WaveformCanvas.jsx     # Per-band waveform visualization
-│   │   ├── CrossoverEditor.jsx    # Draggable crossover frequencies
+│   │   ├── CrossoverEditor.jsx    # Log-scale crossover bar
+│   │   ├── CrossoverHandle.jsx    # One draggable crossover point
+│   │   ├── DetectionMethodSelector.jsx
 │   │   └── ui/                    # Reusable control components
-│   │       ├── RotaryKnob.jsx     # SVG rotary knob with drag
-│   │       ├── VerticalSlider.jsx # Vertical dB slider
-│   │       ├── ToggleButton.jsx   # Toggle button
-│   │       └── SpeedSelector.jsx  # Detection speed selector
+│   │       ├── RotaryKnob.jsx     # SVG rotary knob
+│   │       ├── VerticalSlider.jsx # Vertical dB fader
+│   │       ├── ToggleButton.jsx   # Two-state button
+│   │       └── SpeedSelector.jsx  # Detection speed radio group
 │   ├── constants/                 # Band config, defaults, DSP mapping
-│   ├── hooks/                     # useKnobDrag, useWaveformGenerator
-│   └── styles/                    # Theme tokens
-└── docs/
-    └── transient-shaper-mb-dev-plan.md  # Full development plan
+│   ├── hooks/                     # useParameterControl, useRadioGroup,
+│   │                              # useAudioEngine, useMeters, waveform hooks
+│   └── styles/                    # tokens.css + canvasPalette.js
+├── fixtures/                      # Generated audio for reproducible snapshots
+├── capture-snapshots.mjs          # Writes /product/snapshots evidence
+└── screenshot.mjs                 # Quick full-size + scaled captures
+```
+
+Each component has a sibling `*.module.css`. Every theme-able value lives in
+`src/styles/tokens.css`; the five band accent colours stay in
+`src/constants/bands.js` because the canvas renderer needs them as JS strings.
+
+### Verification
+
+There is no unit-test suite yet (tracked in `/product/todos`). What exists is a
+pair of Playwright scripts that drive the real app:
+
+```bash
+npm run verify        # both of the below
+npm run verify:ui     # ARIA coverage, the full keyboard contract, pointer drag,
+                      # crossover log mapping, multiband-link float drift,
+                      # contrast ratios and the 10px type floor
+npm run verify:audio  # engine start, file load, playback, per-band canvas
+                      # output, meter levels, delta, solo, WAV export, and that
+                      # canvas backing stores track the scaled viewport
+npm run snapshots     # refresh /product/snapshots evidence
 ```
 
 ## Getting Started
