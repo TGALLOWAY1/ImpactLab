@@ -1,48 +1,36 @@
 import React from 'react';
+import useRadioGroup from '../../hooks/useRadioGroup';
+import styles from './SpeedSelector.module.css';
 
-// Phase 5.4 — Three-state segmented control for detection speed with wave icons
+const OPTIONS = [
+  { id: 'slow', label: 'Slow', icon: '∿' },
+  { id: 'medium', label: 'Medium', icon: '∿∿' },
+  { id: 'fast', label: 'Fast', icon: '∿∿∿' },
+];
+
+const VALUES = OPTIONS.map((o) => o.id);
+
 export default function SpeedSelector({ value, onChange }) {
-  const options = [
-    { id: 'slow', label: 'Slow', icon: '∿' },
-    { id: 'medium', label: 'Medium', icon: '∿∿' },
-    { id: 'fast', label: 'Fast', icon: '∿∿∿' },
-  ];
+  const { getRadioProps } = useRadioGroup({ values: VALUES, value, onChange });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <span style={{ fontSize: 8, textTransform: 'uppercase', color: '#666', letterSpacing: '1px' }}>
+    <div className={styles.root}>
+      <span className={styles.heading} id="speed-selector-label">
         Transient Detection Speed
       </span>
-      <div style={{ display: 'flex', gap: 2 }}>
-        {options.map((opt) => {
-          const isActive = value === opt.id;
-          return (
-            <button
-              key={opt.id}
-              onClick={() => onChange(opt.id)}
-              style={{
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: isActive ? '#fff' : '#555',
-                fontSize: 9,
-                textTransform: 'capitalize',
-                cursor: 'pointer',
-                borderBottom: isActive ? '2px solid #fff' : '2px solid transparent',
-                padding: '4px 8px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 2,
-                transition: 'color 0.15s ease',
-                outline: 'none',
-                fontFamily: 'inherit',
-              }}
-            >
-              <span style={{ fontSize: 12, lineHeight: 1 }}>{opt.icon}</span>
-              <span>{opt.label}</span>
-            </button>
-          );
-        })}
+      <div className={styles.options} role="radiogroup" aria-labelledby="speed-selector-label">
+        {OPTIONS.map((opt, i) => (
+          <button
+            key={opt.id}
+            type="button"
+            className={styles.option}
+            {...getRadioProps(opt.id, i)}
+          >
+            {/* Decorative — the visible text label carries the meaning. */}
+            <span className={styles.icon} aria-hidden="true">{opt.icon}</span>
+            <span>{opt.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

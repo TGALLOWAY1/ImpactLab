@@ -2,7 +2,6 @@ import React, { useReducer, useEffect, useState } from 'react';
 import { BANDS } from './constants/bands';
 import { createInitialState, DEFAULT_BAND_STATE } from './constants/defaults';
 import { PRESETS } from './constants/presets';
-import { colors, sizes, typography } from './styles/theme';
 import Header from './components/Header';
 import GlobalControls from './components/GlobalControls';
 import BandStripList from './components/BandStripList';
@@ -11,6 +10,13 @@ import RightPanel from './components/RightPanel';
 import useAudioEngine from './hooks/useAudioEngine';
 import useAudioSource from './hooks/useAudioSource';
 import Explainer from './pages/Explainer';
+import PluginShell from './components/PluginShell';
+import styles from './components/App.module.css';
+
+// Authoring resolution. PluginShell scales this uniformly to fit the viewport
+// rather than reflowing, mirroring how a JUCE editor scales in a host.
+const DESIGN_WIDTH = 1400;
+const DESIGN_HEIGHT = 860;
 
 // Action types
 export const SET_BAND_PARAM = 'SET_BAND_PARAM';
@@ -174,8 +180,14 @@ function useHashRoute() {
 
 export default function App() {
   const route = useHashRoute();
+  // The explainer is a standalone page and is already fluid (min-height 100vh,
+  // canvas width 100%). Wrapping it in the fixed-size shell would break it.
   if (route.startsWith('#/explainer')) return <Explainer />;
-  return <MainApp />;
+  return (
+    <PluginShell designWidth={DESIGN_WIDTH} designHeight={DESIGN_HEIGHT}>
+      <MainApp />
+    </PluginShell>
+  );
 }
 
 function MainApp() {
@@ -189,18 +201,7 @@ function MainApp() {
   const source = useAudioSource(engine.audioCtxRef, engine.connectSource, engine.disconnectSource, getStateForExport);
 
   return (
-    <div
-      style={{
-        width: sizes.pluginWidth,
-        height: sizes.pluginHeight,
-        background: `linear-gradient(180deg, ${colors.pluginBg}, ${colors.pluginBgEnd})`,
-        fontFamily: typography.fontFamily,
-        color: colors.textPrimary,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <main className={styles.pluginRoot} aria-label="Transient Shaper MB">
       <AudioSourceControls
         isInitialized={engine.isInitialized}
         isPlaying={source.isPlaying}
@@ -223,7 +224,7 @@ function MainApp() {
         dispatch={dispatch}
       />
       <GlobalControls state={state.global} dispatch={dispatch} />
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div className={styles.body}>
         <BandStripList
           bands={BANDS}
           bandStates={state.bands}
@@ -238,14 +239,10 @@ function MainApp() {
           isPlaying={source.isPlaying}
           crossoverFreqs={state.global.crossoverFreqs}
           showDelta={state.global.delta}
+          detectionSpeed={state.global.detectionSpeed}
         />
-        <RightPanel
-          state={state.global}
-          metersRef={engine.metersRef}
-          isRunning={engine.isRunning}
-          setGlobalParam={(param, value) => dispatch({ type: SET_GLOBAL_PARAM, param, value })}
-        />
+        <RightPanel metersRef={engine.metersRef} isRunning={engine.isRunning} />
       </div>
-    </div>
+    </main>
   );
 }

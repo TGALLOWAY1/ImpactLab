@@ -1,0 +1,119 @@
+.strip {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  background: linear-gradient(180deg, var(--strip-bg-top), var(--strip-bg-bottom));
+  border-bottom: 1px solid var(--band-accent-dim);
+  opacity: var(--band-opacity, 1);
+  transition: opacity var(--dur-base) ease;
+}
+
+.strip[data-active='true'] {
+  box-shadow: inset 0 0 14px color-mix(in srgb, var(--band-accent) 13%, transparent);
+}
+
+.controls {
+  width: var(--controls-panel-w);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: var(--sp-4) var(--sp-4);
+  gap: var(--sp-4);
+  border-right: 1px solid var(--band-accent-dim);
+}
+
+.identity {
+  width: var(--band-name-w);
+  flex-shrink: 0;
+}
+
+.bandName {
+  color: var(--band-accent);
+  /* Was 30px, which wrapped "HIGH-MID" onto two lines inside its own column. */
+  font-size: var(--fs-band-title);
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.bandRange {
+  color: var(--text-muted);
+  font-size: var(--fs-label);
+  margin-top: var(--sp-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* An amount knob and its time modifier under one heading, mirroring the
+   mockup's paired arrangement. The size difference encodes the relationship:
+   time modifies amount. */
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.groupLabel {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  color: var(--text-label);
+  letter-spacing: var(--ls-label);
+  line-height: 1;
+}
+
+.groupKnobs {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.gainColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.grDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--band-accent);
+  transition: opacity var(--dur-meter);
+}
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.waveform {
+  flex: 1;
+  background: var(--waveform-bg);
+  min-width: 0;
+}
+
+.reset {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  z-index: 1;
+  background: transparent;
+  border: 1px solid var(--band-accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  padding: var(--sp-1) var(--sp-4);
+  cursor: pointer;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.reset:hover {
+  color: var(--text-primary);
+  border-color: var(--band-accent);
+}

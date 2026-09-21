@@ -2,7 +2,7 @@ import React from 'react';
 import BandStrip from './BandStrip';
 
 // Phase 3 — Renders all 5 band strips stacked vertically
-export default function BandStripList({ bands, bandStates, anySoloed, dispatch, getVizData, vizWritePositionsRef, metersRef, isRunning, waveformData, getPlaybackPosition, isPlaying, crossoverFreqs, showDelta }) {
+export default function BandStripList({ bands, bandStates, anySoloed, dispatch, getVizData, vizWritePositionsRef, metersRef, isRunning, waveformData, getPlaybackPosition, isPlaying, crossoverFreqs, showDelta, detectionSpeed }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {bands.map((band, bandIndex) => {
@@ -25,6 +25,7 @@ export default function BandStripList({ bands, bandStates, anySoloed, dispatch, 
             isPlaying={isPlaying}
             crossoverFreqs={crossoverFreqs}
             showDelta={showDelta}
+            detectionSpeed={detectionSpeed}
           />
         );
       })}

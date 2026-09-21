@@ -4,10 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Transient Shaper MB</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0a0f; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-  </style>
+  <!--
+    No <style> block and no external stylesheet link here by design.
+    Global CSS lives in src/styles/tokens.css so it can use custom properties.
+
+    Do NOT add a Google Fonts <link>: vite.config.js sets COEP require-corp for
+    SharedArrayBuffer, which silently blocks cross-origin subresources. The
+    waveforms would fall back to synthetic data with no visible error. If a real
+    Inter webfont is wanted, self-host it under public/fonts/ and @font-face it
+    from tokens.css.
+  -->
 </head>
 <body>
   <div id="root"></div>

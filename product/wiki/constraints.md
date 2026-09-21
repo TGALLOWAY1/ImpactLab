@@ -4,7 +4,7 @@
 - Prototype uses browser Web Audio and AudioWorklet; behavior depends on browser support.
 - SharedArrayBuffer visual path requires cross-origin isolation headers.
 - Worklet file in `public/` cannot import from app source modules.
-- Fixed plugin surface dimensions constrain responsiveness.
+- Fixed plugin surface dimensions (1400x860) are preserved deliberately and scaled to fit rather than reflowed, so the prototype stays faithful to the eventual JUCE editor.
 
 ## Process constraints
 - No automated tests currently; manual verification burden is high.

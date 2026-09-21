@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { colors } from '../styles/theme';
+import { canvasPalette } from '../styles/canvasPalette';
 import useWaveformGenerator from '../hooks/useWaveformGenerator';
 import useRealtimeWaveform from '../hooks/useRealtimeWaveform';
 
@@ -41,24 +41,41 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
+    // Sizing is handled inside draw(), NOT by a ResizeObserver.
+    //
+    // PluginShell scales the whole plugin with `transform: scale()`.
+    // ResizeObserver reports the *untransformed* border-box, so it does not
+    // fire when the scale changes — but getBoundingClientRect() reflects the
+    // new visual size immediately. An observer-driven resize would therefore
+    // leave the backing store at the old scale while draw() reads the new
+    // rect, stretching the waveform until some unrelated event fired.
+    //
+    // draw() already calls getBoundingClientRect() every frame, so syncing the
+    // backing store there is free and always correct.
+    const syncBackingStore = (rect) => {
+      const dpr = window.devicePixelRatio || 1;   // re-read: handles monitor-to-monitor drags
+      const wantW = Math.round(rect.width * dpr);
+      const wantH = Math.round(rect.height * dpr);
+      if (wantW === 0 || wantH === 0) return false;
+      if (canvas.width !== wantW || canvas.height !== wantH) {
+        canvas.width = wantW;
+        canvas.height = wantH;
+      }
+      // setTransform, not scale() — scale() is cumulative. The old code only
+      // survived because assigning canvas.width resets the transform as a side
+      // effect; relying on that is fragile.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return true;
     };
-    resize();
 
-    const ro = new ResizeObserver(() => {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
-    });
-    ro.observe(canvas);
+    // rect.width already includes the plugin scale factor, so multiplying by
+    // dpr yields the device-correct resolution automatically — a scaled-down
+    // plugin on a retina display stays sharp for free.
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let lastTime = 0;
 
@@ -92,7 +109,7 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
 
       // Top boundary — a thin colored line marking the lane.
       ctx.globalAlpha = 0.6;
-      ctx.strokeStyle = colors.deltaOverlay;
+      ctx.strokeStyle = canvasPalette.deltaOverlay;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(0, stripTop);
@@ -100,7 +117,7 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
       ctx.stroke();
 
       // Filled rectified delta waveform.
-      ctx.fillStyle = colors.deltaOverlay;
+      ctx.fillStyle = canvasPalette.deltaOverlay;
       ctx.globalAlpha = 0.85;
       ctx.beginPath();
       ctx.moveTo(0, h);
@@ -118,10 +135,10 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
       // Tiny "Δ" badge at the lane's left edge so users know what they're
       // looking at the first time it lights up.
       ctx.globalAlpha = 0.85;
-      ctx.fillStyle = colors.deltaOverlay;
-      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = canvasPalette.deltaOverlay;
+      ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('Δ', 4, stripTop + 11);
+      ctx.fillText('Δ', 4, stripTop + 12);
       ctx.restore();
     };
 
@@ -130,7 +147,7 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
     const drawPlayhead = (x, h, label, alignLabelLeft) => {
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = canvasPalette.playhead;
       ctx.globalAlpha = 0.9;
       ctx.lineWidth = 2;
       ctx.moveTo(x, 0);
@@ -146,15 +163,18 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
         ctx.fillRect(x - 30, 0, 30, h);
       }
 
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillStyle = '#ffffff';
+      // Bottom-aligned: the per-band Reset button is absolutely positioned at
+      // the strip's top-right, and a top-aligned label collided with it.
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = canvasPalette.playhead;
       ctx.globalAlpha = 0.85;
+      ctx.textBaseline = 'alphabetic';
       if (alignLabelLeft) {
         ctx.textAlign = 'right';
-        ctx.fillText(label, x - 4, 12);
+        ctx.fillText(label, x - 4, h - 5);
       } else {
         ctx.textAlign = 'left';
-        ctx.fillText(label, x + 4, 12);
+        ctx.fillText(label, x + 4, h - 5);
       }
       ctx.restore();
     };
@@ -162,8 +182,10 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
     const drawCenterLine = (w, midY) => {
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 0.5;
+      // --waveform-axis: 3.14:1 against the background. The old #333 was 1.4:1,
+      // i.e. an axis reference line you could not actually see.
+      ctx.strokeStyle = canvasPalette.axis;
+      ctx.lineWidth = 1;
       ctx.moveTo(0, midY);
       ctx.lineTo(w, midY);
       ctx.stroke();
@@ -172,7 +194,20 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
 
     const draw = (currentTime) => {
       if (lastTime === 0) lastTime = currentTime;
+
+      // Skip work entirely while the tab is hidden — five canvases animating
+      // in a background tab is pure waste.
+      if (document.visibilityState === 'hidden') {
+        animFrameRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
       const rect = canvas.getBoundingClientRect();
+      if (!syncBackingStore(rect)) {
+        animFrameRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
       const w = rect.width;
       const h = rect.height;
       const midY = h / 2;
@@ -353,7 +388,9 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
         // === SYNTHETIC WAVEFORM MODE ===
         // Fallback when no file is loaded
         const samples = syntheticSamples;
-        const scrollSpeed = 0.015;
+        // A CSS media query cannot reach a canvas rAF loop, so the
+        // reduced-motion preference has to be honoured here in JS.
+        const scrollSpeed = prefersReducedMotion ? 0 : 0.015;
         offsetRef.current += deltaTime * scrollSpeed;
         const scrollOffset = Math.floor(offsetRef.current);
 
@@ -422,20 +459,24 @@ export default function WaveformCanvas({ band, bandIndex, bandState, getVizData,
     animFrameRef.current = requestAnimationFrame(draw);
 
     return () => {
-      ro.disconnect();
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
     };
   }, [syntheticSamples, band.color, waveformData, getPlaybackPosition, isPlaying, isRunning, readRealtime]);
 
+  // The canvas is two thirds of the screen and is completely opaque to
+  // assistive tech without a label. role="img" + a live-ish description is the
+  // cheapest honest alternative.
   return (
     <canvas
       ref={canvasRef}
+      role="img"
+      aria-label={`${band.label} band waveform${showDelta ? ', with processing difference overlay' : ''}`}
       style={{
         width: '100%',
         height: '100%',
-        backgroundColor: colors.waveformBg,
+        backgroundColor: canvasPalette.background,
         display: 'block',
       }}
     />

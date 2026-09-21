@@ -1,0 +1,159 @@
+/*
+ * Design tokens — the single source of truth for the plugin's skin.
+ *
+ * Why this file exists: inline styles cannot express :focus-visible, :hover,
+ * @media or prefers-reduced-motion, so the UI had none of them. Everything
+ * theme-able lives here as a custom property; components consume it from
+ * CSS Modules.
+ *
+ * EXCEPTION — the 5 band accent colours are NOT defined here. They live in
+ * `src/constants/bands.js` because WaveformCanvas needs real JS strings for
+ * ctx.strokeStyle (custom properties are invisible to canvas 2D). BandStrip
+ * publishes them onto the cascade as --band-accent / --band-accent-dim.
+ * Keep the two files in sync; do not duplicate the hexes here.
+ *
+ * CONTRAST RULES encoded below (verified against the real backgrounds:
+ * strip #0f1628, global bar #101a2d, raised control #2a2a30):
+ *   - text                     >= 4.5:1
+ *   - meaningful UI graphics   >= 3:1  (knob range arc, waveform axis)
+ *   - minimum readable size    10px
+ * Inactive states are distinguished by making the ACTIVE state brighter,
+ * never by pushing the inactive state below 4.5:1.
+ */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* ---- surfaces ---- */
+  --page-bg: #0a0a0f;
+  --plugin-bg-top: #0a1120;
+  --plugin-bg-bottom: #070d19;
+  --panel-bg-top: #0d1424;
+  --panel-bg-bottom: #0b1220;
+  --globalbar-bg-top: #101a2d;
+  --globalbar-bg-bottom: #0c1424;
+  --strip-bg-top: #0f1628;
+  --strip-bg-bottom: #0a1221;
+  --rail-bg-top: #0f1829;
+  --rail-bg-bottom: #0a1121;
+  --waveform-bg: #0a1222;
+  --control-bg: #141b2b;         /* knob bodies, slider tracks — blue-slate, not warm grey */
+  --control-bg-raised: #1d2740;
+  --menu-bg: #121b2f;
+  --menu-item-active-bg: #293a5e;
+
+  /* ---- borders ---- */
+  --border-strong: #34486f;
+  --border: #23304a;
+  --border-subtle: #1d2942;
+
+  /* ---- meaningful graphics (>= 3:1) ---- */
+  --knob-track: #656f85;         /* 3.57:1 on --strip-bg-top; the knob's RANGE must be visible */
+  --knob-pointer: #dde4f2;
+  --waveform-axis: #5a6478;      /* 3.14:1 on --waveform-bg */
+  --meter-frame: #2a3348;
+
+  /* ---- text (>= 4.5:1 on every surface above) ---- */
+  --text-primary: #f3f6ff;
+  --text-secondary: #c3cee4;     /* 9.0:1  — numeric readouts */
+  --text-label: #9fb0cd;         /* 6.5:1  — control labels */
+  --text-muted: #9aa7bf;         /* 5.9:1  — group headers, units */
+  --text-inactive: #8b98b0;      /* 4.9:1  — unselected options */
+  --text-on-accent: #0b1221;
+
+  /* ---- accents ---- */
+  --accent-default: #ffffff;
+  --accent-delta: #9a6dff;
+  --accent-clip: #5eca89;
+  --accent-lookahead: #5bc0eb;
+  --delta-overlay: #d4a847;
+
+  /* ---- meters ---- */
+  --meter-hot: #ff5a5a;
+  --meter-warm: #f6b84f;
+  --meter-ok: #60d86d;
+  --meter-cool: #2ab552;
+  --meter-boost: #7de08a;
+
+  /* ---- error surface ---- */
+  --error-text: #ffb4b4;
+  --error-bg: #3a1f1f;
+  --error-border: #6d3434;
+
+  /* ---- focus ---- */
+  --focus-ring: #8ab4ff;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ---- geometry (was `sizes` in theme.js) ---- */
+  --plugin-w: 1400px;
+  --plugin-h: 860px;
+  --header-h: 62px;
+  --globalbar-h: 102px;
+  --controls-panel-w: 478px;     /* widened from 420 for the paired amount+time knobs */
+  --meter-rail-w: 170px;
+  --band-name-w: 118px;
+
+  /* ---- type ---- */
+  --font-ui: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+  --fs-wordmark: 28px;
+  --fs-band-title: 20px;
+  --fs-body: 13px;
+  --fs-value: 12px;
+  --fs-label: 11px;
+  --fs-micro: 10px;              /* hard floor — nothing smaller is readable */
+  --ls-label: 1px;
+  --ls-title: 2px;
+
+  /* ---- spacing ---- */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 20px;
+
+  /* ---- radii ---- */
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+
+  /* ---- motion ---- */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-meter: 50ms;             /* functional smoothing, NOT decoration */
+}
+
+html, body { height: 100%; }
+
+body {
+  background: var(--page-bg);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  /* Centering is the PluginShell's job now — doing it here too double-centers. */
+}
+
+/* The focus ring the three `outline: 'none'` declarations used to delete. */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* While any parameter is being dragged, the whole document shows the drag
+   cursor. Declarative — replaces the old save/restore of document.body.style,
+   which could not survive overlapping (multi-touch) drags. */
+:root:has([data-dragging][data-orientation='vertical']) { cursor: ns-resize; }
+:root:has([data-dragging][data-orientation='horizontal']) { cursor: ew-resize; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  /* Meters are functional smoothing of a live signal, not decoration.
+     Killing this transition makes them jitter, which is worse. */
+  [data-meter-fill] { transition-duration: var(--dur-meter) !important; }
+}

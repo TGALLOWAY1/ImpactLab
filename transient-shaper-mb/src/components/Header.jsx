@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { colors, sizes, typography } from '../styles/theme';
 import { PRESETS } from '../constants/presets';
 import {
   LOAD_PRESET,
@@ -9,89 +8,154 @@ import {
   UNSOLO_ALL,
   SET_GLOBAL_PARAM,
 } from '../App';
+import styles from './Header.module.css';
 
 export default function Header({ presetName, abSlot, anySoloed, globalBypass, dispatch }) {
   return (
-    <div
-      style={{
-        height: sizes.headerHeight,
-        background: 'linear-gradient(180deg, #0d1424, #0b1220)',
-        borderBottom: '1px solid #22304a',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 14px',
-        flexShrink: 0,
-        gap: 12,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #394c72', display: 'grid', placeItems: 'center', color: '#8ca4d4' }}>◔</div>
-        <span style={{ fontSize: 30, letterSpacing: typography.titleLetterSpacing, color: '#f0f4ff', fontWeight: 300 }}>
-          <span style={{ fontWeight: 700 }}>TRANSIENT</span> SHAPER MB
-        </span>
+    <header className={styles.header}>
+      <div className={styles.brand}>
+        <div className={styles.mark} aria-hidden="true">{'◔'}</div>
+        <h1 className={styles.wordmark}>
+          <strong>TRANSIENT</strong> SHAPER MB
+        </h1>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <PresetPicker presetName={presetName} onSelect={(name) => dispatch({ type: LOAD_PRESET, name })} />
-        <ABCompare abSlot={abSlot} onSwitch={() => dispatch({ type: SWITCH_AB_SLOT })} onCopy={() => dispatch({ type: COPY_AB_SLOT })} />
-        {anySoloed && <SmallButton label="Unsolo" onClick={() => dispatch({ type: UNSOLO_ALL })} />}
-        <SmallButton
+      <div className={styles.presets}>
+        <PresetPicker
+          presetName={presetName}
+          onSelect={(name) => dispatch({ type: LOAD_PRESET, name })}
+        />
+        <ABCompare
+          abSlot={abSlot}
+          onSwitch={() => dispatch({ type: SWITCH_AB_SLOT })}
+          onCopy={() => dispatch({ type: COPY_AB_SLOT })}
+        />
+        {anySoloed && (
+          <ActionButton label="Unsolo" onClick={() => dispatch({ type: UNSOLO_ALL })} />
+        )}
+        <ActionButton
           label="Reset"
+          ariaLabel="Reset all bands and global controls"
           onClick={() => {
-            if (window.confirm('Reset all bands and global controls to defaults?')) dispatch({ type: RESET_ALL });
+            if (window.confirm('Reset all bands and global controls to defaults?')) {
+              dispatch({ type: RESET_ALL });
+            }
           }}
         />
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <SmallButton
+      <div className={styles.actions}>
+        <ToggleAction
           label="Bypass"
+          ariaLabel="Bypass the whole plugin"
           active={globalBypass}
-          onClick={() => dispatch({ type: SET_GLOBAL_PARAM, param: 'globalBypass', value: !globalBypass })}
+          onClick={() =>
+            dispatch({ type: SET_GLOBAL_PARAM, param: 'globalBypass', value: !globalBypass })
+          }
         />
       </div>
-    </div>
+    </header>
   );
 }
 
 function PresetPicker({ presetName, onSelect }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const wrapRef = useRef(null);
+  const triggerRef = useRef(null);
+  const itemRefs = useRef([]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const label = presetName || 'Punch and Clarity';
+  // Move focus into the list when it opens so it is usable without a mouse.
+  useEffect(() => {
+    if (!open) return;
+    const index = Math.max(0, PRESETS.findIndex((p) => p.name === presetName));
+    itemRefs.current[index]?.focus();
+  }, [open, presetName]);
+
+  const close = (restoreFocus = true) => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  };
+
+  const onMenuKeyDown = (e, index) => {
+    switch (e.key) {
+      case 'Escape':
+        e.preventDefault();
+        close();
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        itemRefs.current[(index + 1) % PRESETS.length]?.focus();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        itemRefs.current[(index - 1 + PRESETS.length) % PRESETS.length]?.focus();
+        break;
+      case 'Home':
+        e.preventDefault();
+        itemRefs.current[0]?.focus();
+        break;
+      case 'End':
+        e.preventDefault();
+        itemRefs.current[PRESETS.length - 1]?.focus();
+        break;
+      default:
+    }
+  };
+
+  // The reducer nulls presetName on any edit (markDirty). Previously this fell
+  // back to the literal string 'Punch and Clarity', so touching one knob made
+  // the header claim a preset the user had never loaded.
+  const isDirty = presetName == null;
+  const label = isDirty ? 'Custom' : presetName;
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen((o) => !o)} style={{ ...pickerBase, minWidth: 260, justifyContent: 'center', display: 'flex' }}>
-        {label}
+    <div ref={wrapRef} className={styles.menuWrap}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`${styles.button} ${styles.presetTrigger}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Preset: ${label}`}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' && !open) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        <span className={isDirty ? styles.dirty : undefined}>{label}</span>
       </button>
+
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#121b2f', border: '1px solid #33476e', borderRadius: 4, minWidth: 260, zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: 4 }}>
-          {PRESETS.map((preset) => {
-            const active = preset.name === presetName;
-            return (
-              <button
-                key={preset.name}
-                onClick={() => {
-                  onSelect(preset.name);
-                  setOpen(false);
-                }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', background: active ? '#293a5e' : 'transparent', border: 'none', color: active ? '#fff' : '#c5d0e6', padding: '6px 10px', borderRadius: 3, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                {preset.name}
-              </button>
-            );
-          })}
+        <div className={styles.menu} role="listbox" aria-label="Presets">
+          {PRESETS.map((preset, i) => (
+            <button
+              key={preset.name}
+              ref={(el) => { itemRefs.current[i] = el; }}
+              type="button"
+              role="option"
+              aria-selected={preset.name === presetName}
+              className={styles.menuItem}
+              onKeyDown={(e) => onMenuKeyDown(e, i)}
+              onClick={() => {
+                onSelect(preset.name);
+                close();
+              }}
+            >
+              {preset.name}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -99,35 +163,50 @@ function PresetPicker({ presetName, onSelect }) {
 }
 
 function ABCompare({ abSlot, onSwitch, onCopy }) {
+  const other = abSlot === 'A' ? 'B' : 'A';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <button onClick={onSwitch} style={{ ...pickerBase, minWidth: 40 }}>{abSlot}</button>
-      <button onClick={onCopy} style={{ ...pickerBase, minWidth: 54, color: '#9ba9c2' }}>{abSlot === 'A' ? 'A > B' : 'B > A'}</button>
+    <div className={styles.presets} role="group" aria-label="A/B comparison">
+      <button
+        type="button"
+        className={styles.button}
+        aria-label={`Slot ${abSlot} active. Switch to slot ${other}`}
+        onClick={onSwitch}
+      >
+        {abSlot}
+      </button>
+      <button
+        type="button"
+        className={styles.button}
+        aria-label={`Copy slot ${abSlot} settings to slot ${other}`}
+        title={`Copy ${abSlot} to ${other}`}
+        onClick={onCopy}
+      >
+        {`${abSlot} > ${other}`}
+      </button>
     </div>
   );
 }
 
-function SmallButton({ label, onClick, active = false }) {
-  const style = active
-    ? { ...pickerBase, background: '#9f78ff', color: '#0b1221', border: '1px solid #c4a8ff' }
-    : pickerBase;
+/** A one-shot command. Deliberately has no aria-pressed — it is not a toggle. */
+function ActionButton({ label, ariaLabel, onClick }) {
   return (
-    <button onClick={onClick} aria-pressed={active} style={style}>
+    <button type="button" className={styles.button} aria-label={ariaLabel} onClick={onClick}>
       {label}
     </button>
   );
 }
 
-const pickerBase = {
-  background: '#111c31',
-  color: colors.textPrimary,
-  border: '1px solid #34486f',
-  borderRadius: 4,
-  padding: '7px 12px',
-  fontSize: 11,
-  letterSpacing: '0.8px',
-  textTransform: 'uppercase',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  whiteSpace: 'nowrap',
-};
+/** A real two-state control, so aria-pressed is meaningful here. */
+function ToggleAction({ label, ariaLabel, active, onClick }) {
+  return (
+    <button
+      type="button"
+      className={styles.button}
+      aria-pressed={active}
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}

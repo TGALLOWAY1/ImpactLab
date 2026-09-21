@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { colors, typography } from '../styles/theme';
+import styles from './AudioSourceControls.module.css';
 
 const DEMO_LOOP_URL = 'https://upload.wikimedia.org/wikipedia/commons/2/21/Drum_loop_%28Carrai_Pass%29.wav';
 
@@ -20,6 +20,10 @@ export default function AudioSourceControls({
 }) {
   const fileInputRef = useRef(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
+  // The demo fetch is the one failure path useAudioSource does not own, so it
+  // keeps its own message — rendered through the same surface rather than a
+  // second, unstyleable mechanism.
+  const [demoError, setDemoError] = useState(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -31,157 +35,122 @@ export default function AudioSourceControls({
     try {
       if (!isInitialized) await onInitialize();
       setLoadingDemo(true);
+      setDemoError(null);
       const response = await fetch(DEMO_LOOP_URL);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
-      const demoFile = new File([blob], 'drum-loop-carrai-pass.wav', { type: blob.type || 'audio/wav' });
+      const demoFile = new File([blob], 'drum-loop-carrai-pass.wav', {
+        type: blob.type || 'audio/wav',
+      });
       onLoadFile(demoFile);
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      window.alert(`Failed to load demo loop: ${err.message}`);
+      console.error('Demo loop fetch failed:', err);
+      setDemoError(`Could not load the demo loop (${err.message}). Check your connection, or use Load File.`);
     } finally {
       setLoadingDemo(false);
     }
   };
 
+  const shownError = error || demoError;
+
+  const status = !isInitialized
+    ? 'Click power to start'
+    : !isLoaded
+    ? 'Load an audio file (or demo loop)'
+    : isPlaying
+    ? 'Playing (looped)'
+    : 'Ready';
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '6px 16px',
-        backgroundColor: colors.globalBarBg,
-        borderBottom: `1px solid ${colors.headerBorder}`,
-        fontFamily: typography.fontFamily,
-        fontSize: 11,
-        color: colors.textPrimary,
-        minHeight: 32,
-      }}
-    >
+    <div className={styles.bar} role="toolbar" aria-label="Audio source and transport">
       <button
+        type="button"
         onClick={onInitialize}
-        style={{
-          ...btnBase,
-          backgroundColor: isInitialized ? '#2a5a2a' : '#444',
-          color: isInitialized ? '#6fcf6f' : '#aaa',
-          minWidth: 28,
-          fontSize: 14,
-        }}
-        title={isInitialized ? 'Audio engine running' : 'Initialize audio engine'}
+        className={`${styles.btn} ${styles.power}`}
+        // NOT aria-pressed. `initialize()` is one-way — it returns the existing
+        // context and never sets isInitialized back to false — so announcing a
+        // toggle would promise a stop action that does not exist. Once running,
+        // the control has done its job and becomes a status indicator.
+        disabled={isInitialized}
+        data-running={isInitialized}
+        // The glyph is the whole button content, so it needs a real name.
+        aria-label={isInitialized ? 'Audio engine is running' : 'Start the audio engine'}
+        title={isInitialized ? 'Audio engine is running' : 'Initialize audio engine'}
       >
-        {isInitialized ? '\u25C9' : '\u2B58'}
+        <span aria-hidden="true">{isInitialized ? '◉' : '⭘'}</span>
       </button>
 
-      <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} style={{ display: 'none' }} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        onChange={handleFileChange}
+        className={styles.hiddenInput}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
       <button
+        type="button"
+        className={styles.btn}
         onClick={() => {
           if (!isInitialized) onInitialize().then(() => fileInputRef.current?.click());
           else fileInputRef.current?.click();
         }}
-        style={{ ...btnBase, backgroundColor: '#333', color: '#ccc' }}
-        title="Load audio file"
       >
         Load File
       </button>
 
       <button
+        type="button"
+        className={styles.btn}
         onClick={handleLoadDemo}
         disabled={loadingDemo}
-        style={{ ...btnBase, backgroundColor: '#2f3e5e', color: '#b8cbf2', opacity: loadingDemo ? 0.7 : 1 }}
         title="Load open-source demo loop by Pannage (CC BY-SA 3.0)"
       >
         {loadingDemo ? 'Loading Demo…' : 'Load Demo Loop'}
       </button>
 
-      {fileName && (
-        <span
-          style={{
-            color: colors.textLabel,
-            fontSize: 10,
-            maxWidth: 240,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {fileName}
-        </span>
-      )}
+      {fileName && <span className={styles.fileName}>{fileName}</span>}
 
       {isLoaded && (
         <>
           <button
+            type="button"
+            className={`${styles.btn} ${styles.transport}`}
+            data-playing={isPlaying}
             onClick={isPlaying ? onStop : onPlay}
-            style={{
-              ...btnBase,
-              backgroundColor: isPlaying ? '#5a2a2a' : '#2a3a5a',
-              color: isPlaying ? '#e85d5d' : '#5bc0eb',
-              minWidth: 54,
-            }}
           >
-            {isPlaying ? '\u25A0 Stop' : '\u25B6 Play'}
+            <span aria-hidden="true">{isPlaying ? '■' : '▶'}</span>
+            {isPlaying ? ' Stop' : ' Play'}
           </button>
           <button
+            type="button"
+            className={styles.btn}
             onClick={onExport}
             disabled={isExporting}
-            style={{
-              ...btnBase,
-              backgroundColor: isExporting ? '#333' : '#3a4a3a',
-              color: isExporting ? '#666' : '#8fdf8f',
-              minWidth: 54,
-              opacity: isExporting ? 0.6 : 1,
-              cursor: isExporting ? 'wait' : 'pointer',
-            }}
             title="Export processed audio as WAV"
           >
-            {isExporting ? 'Saving...' : '\u2B07 Save'}
+            <span aria-hidden="true">{'⬇'}</span>
+            {isExporting ? ' Saving…' : ' Save'}
           </button>
         </>
       )}
 
-      {error && (
-        <span
-          onClick={onDismissError}
+      {shownError && (
+        <button
+          type="button"
+          className={styles.error}
+          onClick={() => { setDemoError(null); onDismissError?.(); }}
           title="Dismiss"
-          style={{
-            color: '#ffb4b4',
-            background: '#3a1f1f',
-            border: '1px solid #6d3434',
-            borderRadius: 4,
-            padding: '3px 8px',
-            fontSize: 10,
-            cursor: 'pointer',
-            maxWidth: 380,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
+          aria-label={`Dismiss error: ${shownError}`}
         >
-          {error}
-        </span>
+          {/* Live region, so the failure is announced rather than only seen. */}
+          <span role="alert">{shownError}</span>
+        </button>
       )}
 
-      <span style={{ marginLeft: 'auto', color: colors.textInactive, fontSize: 9, letterSpacing: '0.5px' }}>
-        {!isInitialized
-          ? 'Click power to start'
-          : !isLoaded
-          ? 'Load an audio file (or demo loop)'
-          : isPlaying
-          ? 'Playing (looped)'
-          : 'Ready'}
-      </span>
+      {/* Announced when it changes, so the engine's state is not purely visual. */}
+      <span className={styles.status} role="status">{status}</span>
     </div>
   );
 }
-
-const btnBase = {
-  border: 'none',
-  borderRadius: 4,
-  padding: '4px 10px',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: '0.5px',
-};

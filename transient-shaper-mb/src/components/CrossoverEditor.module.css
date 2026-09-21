@@ -1,0 +1,93 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+}
+
+.heading {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  color: var(--text-muted);   /* was #666 at 7px — about 2.9:1 and unreadable */
+  letter-spacing: var(--ls-label);
+  text-align: center;
+}
+
+.bar {
+  position: relative;
+  height: 20px;
+  border-radius: var(--r-sm);
+  background: var(--control-bg);
+  border: 1px solid var(--knob-track);
+  cursor: default;
+  overflow: visible;
+}
+
+.region {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/*
+ * The interactive area is 24px square (the minimum pointer target), while the
+ * visible dot stays 10px. Adjacent handles can legally sit as little as half an
+ * octave apart, so these boxes may overlap; pointer capture makes whichever is
+ * grabbed win, and keyboard control is unaffected.
+ */
+.handle {
+  position: absolute;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: ew-resize;
+  touch-action: none;
+  border-radius: 50%;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--handle-accent);
+  transition: box-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+
+.handle:hover .dot,
+.handle:focus-visible .dot,
+.handle[data-dragging] .dot {
+  box-shadow: 0 0 6px var(--handle-accent);
+  transform: scale(1.2);
+}
+
+.readout {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--menu-bg);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--fs-micro);
+  padding: 1px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) ease;
+}
+
+/* Revealed on focus too, so keyboard users can read the value they are changing. */
+.handle:hover .readout,
+.handle:focus-visible .readout,
+.handle[data-dragging] .readout {
+  opacity: 1;
+}

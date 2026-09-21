@@ -1,0 +1,41 @@
+.btn {
+  background: var(--control-bg-raised);
+  color: var(--text-inactive);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-5);
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-label);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease,
+              border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+.btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/*
+ * The accent resolves in three steps: an explicit per-button accent, else the
+ * band colour published by BandStrip, else white. That is what lets the same
+ * component serve the band strips and the global bar with no `color` prop.
+ */
+.btn[aria-pressed='true'] {
+  background: var(--toggle-accent, var(--band-accent, var(--accent-default)));
+  border-color: var(--toggle-accent, var(--band-accent, var(--accent-default)));
+  color: var(--text-on-accent);
+  font-weight: 700;
+  box-shadow: 0 0 8px color-mix(in srgb,
+    var(--toggle-accent, var(--band-accent, var(--accent-default))) 30%, transparent);
+}
+
+.sm {
+  font-size: var(--fs-micro);   /* 10px floor — the old 8px BYP was unreadable */
+  padding: var(--sp-1) var(--sp-3);
+  letter-spacing: 0.5px;
+}
