@@ -79,3 +79,27 @@
 .hiddenInput {
   display: none;
 }
+
+/*
+ * A real <button>, not a clickable <span>: it is dismissible, so it needs to be
+ * focusable and operable by keyboard like any other control.
+ */
+.error {
+  color: var(--error-text);
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: var(--r-md);
+  padding: var(--sp-1) var(--sp-4);
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  cursor: pointer;
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.error:hover {
+  border-color: var(--meter-hot);
+}

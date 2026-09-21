@@ -73,6 +73,12 @@
   --meter-warm: #f6b84f;
   --meter-ok: #60d86d;
   --meter-cool: #2ab552;
+  --meter-boost: #7de08a;
+
+  /* ---- error surface ---- */
+  --error-text: #ffb4b4;
+  --error-bg: #3a1f1f;
+  --error-border: #6d3434;
 
   /* ---- focus ---- */
   --focus-ring: #8ab4ff;

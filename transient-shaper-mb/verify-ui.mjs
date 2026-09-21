@@ -103,6 +103,20 @@ const linked = await page.evaluate(() => [...document.querySelectorAll('[aria-la
   .map((el) => +el.getAttribute('aria-valuenow')));
 check(`all 5 bands tracked in lockstep: [${linked}]`, linked.every((n) => n === 25));
 check('no float dust', linked.every((n) => Number.isInteger(n)));
+
+// Merged from the DSP-correctness branch: link fans a change out to the OTHER
+// bands, so the band you are actually holding must follow the knob even when it
+// is bypassed. Bypass mutes a band's processing; it should not freeze its UI.
+await page.locator('[aria-label="High band Attack amount"]').focus();
+await page.keyboard.press('Backspace');
+await page.locator('button[aria-label="Bypass High band"]').click();
+const highKnob = page.locator('[aria-label="High band Attack amount"]');
+await highKnob.focus();
+for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowUp');
+const highVal = await highKnob.evaluate((el) => +el.getAttribute('aria-valuenow'));
+check(`a bypassed band still follows its own knob under link (${highVal})`, highVal === 5);
+await page.locator('button[aria-label="Bypass High band"]').click();
+
 await page.locator('input[type="checkbox"]').uncheck();
 await attack.focus(); await page.keyboard.press('Backspace');
 

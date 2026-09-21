@@ -10,6 +10,8 @@ export default function AudioSourceControls({
   isLoaded,
   isExporting,
   fileName,
+  error,
+  onDismissError,
   onInitialize,
   onLoadFile,
   onPlay,
@@ -18,6 +20,10 @@ export default function AudioSourceControls({
 }) {
   const fileInputRef = useRef(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
+  // The demo fetch is the one failure path useAudioSource does not own, so it
+  // keeps its own message — rendered through the same surface rather than a
+  // second, unstyleable mechanism.
+  const [demoError, setDemoError] = useState(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -29,6 +35,7 @@ export default function AudioSourceControls({
     try {
       if (!isInitialized) await onInitialize();
       setLoadingDemo(true);
+      setDemoError(null);
       const response = await fetch(DEMO_LOOP_URL);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
@@ -37,12 +44,14 @@ export default function AudioSourceControls({
       });
       onLoadFile(demoFile);
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      window.alert(`Failed to load demo loop: ${err.message}`);
+      console.error('Demo loop fetch failed:', err);
+      setDemoError(`Could not load the demo loop (${err.message}). Check your connection, or use Load File.`);
     } finally {
       setLoadingDemo(false);
     }
   };
+
+  const shownError = error || demoError;
 
   const status = !isInitialized
     ? 'Click power to start'
@@ -120,6 +129,19 @@ export default function AudioSourceControls({
             {isExporting ? ' Saving…' : ' Save'}
           </button>
         </>
+      )}
+
+      {shownError && (
+        <button
+          type="button"
+          className={styles.error}
+          onClick={() => { setDemoError(null); onDismissError?.(); }}
+          title="Dismiss"
+          aria-label={`Dismiss error: ${shownError}`}
+        >
+          {/* Live region, so the failure is announced rather than only seen. */}
+          <span role="alert">{shownError}</span>
+        </button>
       )}
 
       {/* Announced when it changes, so the engine's state is not purely visual. */}

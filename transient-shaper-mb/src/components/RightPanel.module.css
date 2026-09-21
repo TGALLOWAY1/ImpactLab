@@ -70,7 +70,8 @@
   );
 }
 
-.grFill {
+/* Gain CHANGE, not gain reduction: direction is colour, magnitude is height. */
+.cutFill {
   background: linear-gradient(
     180deg,
     var(--meter-hot) 0%,
@@ -78,6 +79,20 @@
     var(--meter-warm) 100%
   );
 }
+
+.boostFill {
+  background: linear-gradient(180deg, var(--meter-boost) 0%, var(--meter-cool) 100%);
+}
+
+.gainReadout {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.boost { color: var(--meter-boost); }
+.cut { color: var(--meter-warm); }
 
 .caption {
   font-size: var(--fs-micro);

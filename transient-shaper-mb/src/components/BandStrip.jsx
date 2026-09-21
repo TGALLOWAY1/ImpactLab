@@ -6,7 +6,7 @@ import RotaryKnob from './ui/RotaryKnob';
 import VerticalSlider from './ui/VerticalSlider';
 import ToggleButton from './ui/ToggleButton';
 import WaveformCanvas from './WaveformCanvas';
-import useMeters, { grDbToHeight } from '../hooks/useMeters';
+import useMeters, { gainDbToHeight } from '../hooks/useMeters';
 import styles from './BandStrip.module.css';
 
 const fmtSigned = (v) => `${v > 0 ? '+' : ''}${Math.round(v)}%`;
@@ -54,8 +54,10 @@ export default function BandStrip({
     dispatch({ type: SET_BAND_PARAM, bandId: band.id, param, value });
 
   const meters = useMeters(metersRef, isRunning);
-  const grDb = meters && meters.bandGrDb ? meters.bandGrDb[bandIndex] : 0;
-  const grIntensity = grDbToHeight(grDb, -6);
+  // Gain CHANGE, not gain reduction: a band boosting its attack is working as
+  // hard as one cutting its sustain, and the indicator should light for both.
+  const gainDb = meters && meters.bandGainDb ? meters.bandGainDb[bandIndex] : 0;
+  const gainIntensity = gainDbToHeight(gainDb, 6);   // full at +/-6 dB
   const range = formatBandRange(bandIndex, crossoverFreqs);
 
   const attackMs = effectiveTimeMs(band.id, 'attack', bandState.attackTime ?? 50, detectionSpeed);
@@ -124,11 +126,11 @@ export default function BandStrip({
               announced continuously. The title serves sighted mouse users. */}
           <div
             aria-hidden="true"
-            title={`Gain reduction: ${grDb.toFixed(1)} dB`}
+            title={`Gain change: ${gainDb > 0 ? '+' : ''}${gainDb.toFixed(1)} dB`}
             className={styles.grDot}
             style={{
-              opacity: 0.15 + grIntensity * 0.85,
-              boxShadow: grIntensity > 0.05 ? '0 0 6px var(--band-accent)' : 'none',
+              opacity: 0.15 + gainIntensity * 0.85,
+              boxShadow: gainIntensity > 0.05 ? '0 0 6px var(--band-accent)' : 'none',
             }}
           />
           <VerticalSlider

@@ -30,6 +30,24 @@ await sleep(1000);
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? (pass++, console.log(`  PASS  ${n}`)) : (fail++, console.log(`  FAIL  ${n} ${d}`)); };
 
+// Meters track a live signal, so they sit at the floor between transients.
+// Sampling one instant is a coin flip; sample a window and keep the peak.
+const peakMeterOver = async (ms, selector) => {
+  let lowestInset = 100;
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const top = await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return 100;
+      const m = getComputedStyle(el).clipPath.match(/inset\(([\d.e+-]+)%/);
+      return m ? parseFloat(m[1]) : 100;
+    }, selector);
+    if (top < lowestInset) lowestInset = top;
+    await sleep(40);
+  }
+  return 100 - lowestInset;   // peak fill height, as a percentage
+};
+
 console.log('\n=== Audio engine regression ===');
 await page.locator('button[aria-label="Start the audio engine"]').click();
 await sleep(1500);
@@ -56,11 +74,30 @@ const painted = await page.evaluate(() => [...document.querySelectorAll('canvas'
 }));
 check(`all 5 band canvases are drawing real signal [${painted}]`, painted.every((n) => n > 20));
 
-const meterMoved = await page.evaluate(() => {
-  const el = document.querySelector('[data-meter-fill]');
-  return getComputedStyle(el).clipPath;
+const inPeak = await peakMeterOver(1500, '[data-meter-fill]');
+check(`IN meter is reading level (peaks at ${inPeak.toFixed(1)}% of the bar)`, inPeak > 5);
+
+console.log('\n=== Gain meter is bidirectional (merged from the DSP branch) ===');
+// A transient shaper boosting an attack is working as hard as one cutting a
+// sustain. Drive a large boost and confirm the meter reads it as a boost.
+await page.locator('[aria-label="Low band Attack amount"]').focus();
+await page.keyboard.press('End');
+await sleep(1500);
+const gain = await page.evaluate(() => {
+  const cells = [...document.querySelectorAll('[class*="meterCell"]')];
+  const gainCell = cells[cells.length - 1];
+  return {
+    text: gainCell.querySelector('[class*="gainReadout"]')?.textContent ?? '',
+    isBoost: /boostFill/.test(gainCell.querySelector('[data-meter-fill]')?.className ?? ''),
+  };
 });
-check(`IN meter is reading level (clip-path ${meterMoved})`, !meterMoved.includes('100%'));
+check(`gain meter reports a boost, not reduction ("${gain.text}" dB)`, parseFloat(gain.text) > 0);
+check('boost is coloured as a boost, not a cut', gain.isBoost);
+const gainPeak = await peakMeterOver(1500, '[class*="meterCell"]:last-child [data-meter-fill]');
+check(`gain meter rises off the floor (peaks at ${gainPeak.toFixed(1)}% of the bar)`, gainPeak > 50);
+await page.locator('[aria-label="Low band Attack amount"]').focus();
+await page.keyboard.press('Backspace');
+await sleep(600);
 
 // Delta lane
 await page.locator('button:has-text("Delta")').click();

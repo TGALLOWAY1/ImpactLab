@@ -23,6 +23,12 @@ export const BAND_TIME_DEFAULTS = {
   high:     { attackMs: 0.2, releaseMs: 30,  sidechainHpf: null },
 };
 
+// Lookahead time the worklet applies when the toggle is on, in milliseconds.
+// MUST match LOOKAHEAD_MS in public/dsp/transient-shaper-worklet.js — the
+// worklet is served verbatim and cannot import from src/. Used to compensate
+// the added latency when rendering an offline export.
+export const LOOKAHEAD_MS = 3;
+
 // Detection speed presets — multipliers on default time constants
 export const DETECTION_SPEED_PRESETS = {
   slow:   { attackMultiplier: 2.0, releaseMultiplier: 2.0 },
