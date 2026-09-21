@@ -40,10 +40,9 @@ export default function useKnobDrag({ value, min, max, onChange, sensitivity = 0
     [min, max, onChange, sensitivity],
   );
 
-  const onDoubleClick = useCallback(() => {
-    const defaultValue = (min + max) / 2;
-    onChange(defaultValue);
-  }, [min, max, onChange]);
-
-  return { onMouseDown, onDoubleClick };
+  // Double-click-to-default lives in the individual controls: the midpoint of
+  // the range is the wrong answer for most parameters here (Output Gain runs
+  // -30..+6, so its midpoint is -12 dB, not 0 dB), and each control already
+  // knows its own neutral value.
+  return { onMouseDown };
 }

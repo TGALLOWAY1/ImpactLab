@@ -42,7 +42,13 @@ function reducer(state, action) {
         const delta = value - state.bands[bandId][param];
         const updatedBands = { ...state.bands };
         for (const band of BANDS) {
-          if (!updatedBands[band.id].bypass) {
+          // The band the user is actually dragging always follows the knob,
+          // even when it is bypassed — link is about fanning the change out to
+          // the *other* bands, not about disabling the control you're holding.
+          // (Bypass mutes a band's processing; it shouldn't freeze its UI.)
+          if (band.id === bandId) {
+            updatedBands[band.id] = { ...updatedBands[band.id], [param]: value };
+          } else if (!updatedBands[band.id].bypass) {
             updatedBands[band.id] = {
               ...updatedBands[band.id],
               [param]: Math.max(-100, Math.min(100, updatedBands[band.id][param] + delta)),
@@ -87,8 +93,10 @@ function reducer(state, action) {
         },
       };
     case RESET_BAND:
+      // Resetting a band changes musical parameters, so the preset name is no
+      // longer an accurate description of what you're hearing.
       return {
-        ...state,
+        ...markDirty(state),
         bands: {
           ...state.bands,
           [action.bandId]: { ...DEFAULT_BAND_STATE },
@@ -199,6 +207,8 @@ function MainApp() {
         isLoaded={source.isLoaded}
         isExporting={source.isExporting}
         fileName={source.fileName}
+        error={source.error}
+        onDismissError={source.clearError}
         onInitialize={engine.initialize}
         onLoadFile={source.loadFile}
         onPlay={source.play}

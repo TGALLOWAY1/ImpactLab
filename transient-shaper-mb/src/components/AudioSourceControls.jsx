@@ -10,6 +10,8 @@ export default function AudioSourceControls({
   isLoaded,
   isExporting,
   fileName,
+  error,
+  onDismissError,
   onInitialize,
   onLoadFile,
   onPlay,
@@ -136,6 +138,28 @@ export default function AudioSourceControls({
             {isExporting ? 'Saving...' : '\u2B07 Save'}
           </button>
         </>
+      )}
+
+      {error && (
+        <span
+          onClick={onDismissError}
+          title="Dismiss"
+          style={{
+            color: '#ffb4b4',
+            background: '#3a1f1f',
+            border: '1px solid #6d3434',
+            borderRadius: 4,
+            padding: '3px 8px',
+            fontSize: 10,
+            cursor: 'pointer',
+            maxWidth: 380,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {error}
+        </span>
       )}
 
       <span style={{ marginLeft: 'auto', color: colors.textInactive, fontSize: 9, letterSpacing: '0.5px' }}>

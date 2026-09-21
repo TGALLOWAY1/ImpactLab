@@ -77,6 +77,65 @@ class BiquadFilter {
     this.a1 = (-2 * cosW0) / a0;
     this.a2 = (1 - alpha) / a0;
   }
+
+  // 2nd-order allpass: unity magnitude, and at Q = 1/sqrt(2) its phase response
+  // is exactly that of an LR4 split at the same frequency (LP + HP = this).
+  // Used to phase-align bands against crossovers further down the chain.
+  setAllpass(freq, sampleRate, Q) {
+    const w0 = 2 * Math.PI * freq / sampleRate;
+    const cosW0 = Math.cos(w0);
+    const sinW0 = Math.sin(w0);
+    const alpha = sinW0 / (2 * Q);
+
+    const a0 = 1 + alpha;
+    this.b0 = (1 - alpha) / a0;
+    this.b1 = (-2 * cosW0) / a0;
+    this.b2 = 1;
+    this.a1 = (-2 * cosW0) / a0;
+    this.a2 = (1 - alpha) / a0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AllpassChain — cascade of 2nd-order allpasses used for band alignment
+//
+// A serial LR4 crossover tree is NOT sum-flat on its own: the low output of
+// split i skips every later split, so it arrives with a different phase than
+// the bands that passed through them. Summing those bands produces magnitude
+// ripple (measured up to ~1 dB around 3 kHz on the default 80/500/2500/8000
+// layout) even with every control at its neutral position.
+//
+// The standard fix is to feed each band through the allpass equivalent of the
+// splits it skipped. The whole bank then collapses to AP(f0)·AP(f1)·AP(f2)·AP(f3)
+// — flat magnitude everywhere. The global dry path runs through the same
+// cascade so Mix and Delta stay phase-coherent with the wet sum.
+// ═══════════════════════════════════════════════════════════════════
+
+const LR_Q = 0.7071067811865476; // 1/sqrt(2) — Butterworth
+
+class AllpassChain {
+  constructor(freqs, sampleRate) {
+    this.filters = freqs.map(() => new BiquadFilter());
+    this.setFrequencies(freqs, sampleRate);
+  }
+
+  setFrequencies(freqs, sampleRate) {
+    for (let i = 0; i < this.filters.length; i++) {
+      this.filters[i].setAllpass(freqs[i], sampleRate, LR_Q);
+    }
+  }
+
+  process(x) {
+    let y = x;
+    for (let i = 0; i < this.filters.length; i++) {
+      y = this.filters[i].processSample(y);
+    }
+    return y;
+  }
+
+  reset() {
+    for (let i = 0; i < this.filters.length; i++) this.filters[i].reset();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -93,11 +152,10 @@ class LR4Crossover {
   }
 
   updateFrequency(freq, sampleRate) {
-    const Q = 0.7071067811865476; // 1/sqrt(2) — Butterworth
-    this.lp1.setLowpass(freq, sampleRate, Q);
-    this.lp2.setLowpass(freq, sampleRate, Q);
-    this.hp1.setHighpass(freq, sampleRate, Q);
-    this.hp2.setHighpass(freq, sampleRate, Q);
+    this.lp1.setLowpass(freq, sampleRate, LR_Q);
+    this.lp2.setLowpass(freq, sampleRate, LR_Q);
+    this.hp1.setHighpass(freq, sampleRate, LR_Q);
+    this.hp2.setHighpass(freq, sampleRate, LR_Q);
   }
 
   process(x) {
@@ -271,8 +329,11 @@ class PeakRmsDetector {
     // Denormal protection
     this.envPeak += 1e-15;
 
-    // Crest factor as transient indicator
-    const ratio = this.envPeak / Math.max(envRms, 1e-8);
+    // Crest factor as transient indicator. A real signal always has
+    // peak >= RMS, so ratio < 1 only ever comes from the denormal floor
+    // during silence — clamping it keeps the sustain curve monotonic
+    // instead of peaking when there is no signal at all.
+    const ratio = Math.max(this.envPeak / Math.max(envRms, 1e-8), 1.0);
 
     // Normalize: ratio ~1.0 = no transient, >1 = transient
     const transient = clamp((ratio - 1.0) / 3.0, 0, 1);
@@ -441,6 +502,37 @@ const BAND_DEFAULTS = {
 
 const BAND_IDS = ['sub', 'low', 'low-mid', 'high-mid', 'high'];
 
+// Signal-presence gate thresholds (linear amplitude). Below PRESENCE_FLOOR
+// (~-90 dBFS) detection is fully muted; it fades in over PRESENCE_SPAN so the
+// gate never snaps. Real program material sits far above this — the gate only
+// exists to stop detectors from shaping digital silence.
+const PRESENCE_FLOOR = 3.16e-5;             // -90 dBFS
+const PRESENCE_SPAN = 1.78e-4 - PRESENCE_FLOOR; // fully open by -75 dBFS
+
+// Lookahead time when the toggle is on. Adds exactly this much latency.
+const LOOKAHEAD_MS = 3;
+
+const DEFAULT_XOVER_FREQS = [80, 500, 2500, 8000];
+
+// Guard the filter design against out-of-range or out-of-order frequencies.
+// A biquad asked for a corner at or above Nyquist goes unstable, and a
+// descending pair produces a negative-width band, so neither can be allowed
+// to reach the filters however the value arrived.
+function sanitizeCrossoverFreqs(freqs, sampleRate) {
+  const maxFreq = Math.min(20000, sampleRate * 0.45);
+  const out = [];
+  let floorFreq = 20;
+  for (let i = 0; i < 4; i++) {
+    const raw = freqs && freqs[i];
+    let f = typeof raw === 'number' && Number.isFinite(raw) ? raw : DEFAULT_XOVER_FREQS[i];
+    // Keep at least a semitone of separation so adjacent splits can't collapse.
+    f = clamp(f, floorFreq, maxFreq);
+    out.push(f);
+    floorFreq = Math.min(f * 1.06, maxFreq);
+  }
+  return out;
+}
+
 class BandProcessor {
   constructor(bandId, sampleRate, detectionMethod) {
     this.bandId = bandId;
@@ -486,6 +578,27 @@ class BandProcessor {
     this.oldDetector = null;
     this.crossfadeSamples = 0;
     this.crossfadeLength = Math.round(0.005 * sampleRate); // 5ms
+
+    // Lookahead: the detector reads the live sample while the audio it
+    // shapes is held back by this delay, so the gain envelope is already
+    // open by the time the transient arrives.
+    this.lookaheadBuf = new CircularBuffer(1);
+    this.lookaheadSamples = 0;
+    this.lastAlignedInput = 0;
+
+    // Signal-presence gate. The crest- and flux-based detectors settle on a
+    // non-zero sustain reading when fed digital silence, which would apply
+    // sustain gain to the gaps between hits. This tracks a fast-attack /
+    // slow-release level and fades detection out below roughly -90 dBFS.
+    this.presenceEnv = 0;
+    this.presenceRelCoeff = msToCoeff(50, sampleRate);
+  }
+
+  setLookahead(samples) {
+    const n = Math.max(0, Math.round(samples));
+    if (n === this.lookaheadSamples) return;
+    this.lookaheadSamples = n;
+    this.lookaheadBuf.resize(Math.max(n, 1));
   }
 
   setDetectionMethod(method, sampleRate) {
@@ -556,28 +669,55 @@ class BandProcessor {
       if (this.crossfadeSamples === 0) this.oldDetector = null;
     }
 
-    // 4. Compute gain
+    // 4. Signal-presence gate — see constructor. Fades detection to zero
+    //    below ~-90 dBFS so silence is never shaped.
+    if (xRect > this.presenceEnv) {
+      this.presenceEnv = xRect;
+    } else {
+      this.presenceEnv = this.presenceRelCoeff * this.presenceEnv;
+    }
+    const presence = clamp((this.presenceEnv - PRESENCE_FLOOR) / PRESENCE_SPAN, 0, 1);
+    const attackSignal = presence * detection.attackSignal;
+    const sustainSignal = presence * detection.sustainSignal;
+
+    // 5. Compute gain
     const attackDb = (this.attackAmountSmoother.next() / 100) * 12; // ±12dB
     const sustainDb = (this.sustainAmountSmoother.next() / 100) * 12;
 
-    const totalGainDb = attackDb * detection.attackSignal + sustainDb * detection.sustainSignal;
+    const totalGainDb = attackDb * attackSignal + sustainDb * sustainSignal;
     const gainLinear = dbToLinear(totalGainDb);
 
-    // 5. Asymmetric gain smoothing
+    // 6. Asymmetric gain smoothing
     const coeff = (gainLinear > this.gainSmooth) ? this.gainAttCoeff : this.gainRelCoeff;
     this.gainSmooth = coeff * this.gainSmooth + (1 - coeff) * gainLinear;
 
-    // 6. Apply gain + per-band output gain
+    // 7. Apply gain + per-band output gain
     const outGainLin = dbToLinear(this.outputGainSmoother.next());
 
-    // Expose last-detected signals (read by offline detector capture path)
-    this.lastAttackSignal = detection.attackSignal;
-    this.lastSustainSignal = detection.sustainSignal;
+    // Expose last-detected signals (read by the offline detector capture path
+    // and the explainer visualization). These are the gated values, so what is
+    // drawn is what actually drives the gain.
+    this.lastAttackSignal = attackSignal;
+    this.lastSustainSignal = sustainSignal;
 
-    // 7. Per-band wet/dry blend
-    const wet = this.gainSmooth * outGainLin * x;
+    // 8. Delay the audio to match the lookahead the detector was given.
+    //    Everything downstream (per-band blend, delta viz, the global dry
+    //    path) works from this aligned sample, never the raw input.
+    const xd = this.lookaheadSamples > 0 ? this.lookaheadBuf.readAndWrite(x) : x;
+    this.lastAlignedInput = xd;
+
+    // 9. Per-band wet/dry blend
+    const wet = this.gainSmooth * outGainLin * xd;
     const m = this.mixSmoother.next();
-    return m * wet + (1 - m) * x;
+    return m * wet + (1 - m) * xd;
+  }
+
+  // Band bypass: no shaping, but the audio still has to leave this band with
+  // the same latency as its neighbours or the band sum comb-filters.
+  processBypassed(x) {
+    const xd = this.lookaheadSamples > 0 ? this.lookaheadBuf.readAndWrite(x) : x;
+    this.lastAlignedInput = xd;
+    return xd;
   }
 
   reset() {
@@ -590,6 +730,9 @@ class BandProcessor {
     this.mixSmoother.snap();
     this.oldDetector = null;
     this.crossfadeSamples = 0;
+    this.lookaheadBuf.reset();
+    this.lastAlignedInput = 0;
+    this.presenceEnv = 0;
   }
 }
 
@@ -612,20 +755,40 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     this.speedMultiplier = 1.0;
 
     // 4 LR4 crossovers for 5 bands, per channel (L/R)
-    const freqs = this.params.crossoverFreqs || [80, 500, 2500, 8000];
-    this.crossoversL = freqs.map(f => new LR4Crossover(f, this.sr));
-    this.crossoversR = freqs.map(f => new LR4Crossover(f, this.sr));
+    this.xoverFreqs = sanitizeCrossoverFreqs(this.params.crossoverFreqs, this.sr);
+    this.crossoversL = this.xoverFreqs.map(f => new LR4Crossover(f, this.sr));
+    this.crossoversR = this.xoverFreqs.map(f => new LR4Crossover(f, this.sr));
+
+    // Allpass compensation. Band i (i < 4) skipped every split after i, so it
+    // gets the allpass equivalent of splits i+1..3 to land back in phase with
+    // the bands that went through them. Band 4 passed through all of them and
+    // needs nothing. See the AllpassChain header for why this is required.
+    this.bandApL = [];
+    this.bandApR = [];
+    for (let i = 0; i < 5; i++) {
+      const laterFreqs = this.xoverFreqs.slice(i + 1);
+      this.bandApL.push(new AllpassChain(laterFreqs, this.sr));
+      this.bandApR.push(new AllpassChain(laterFreqs, this.sr));
+    }
+
+    // The compensated band sum equals AP(f0)·AP(f1)·AP(f2)·AP(f3) applied to
+    // the input — flat magnitude, but phase-rotated. The dry path used by Mix
+    // and Delta runs through the same cascade so the two stay coherent;
+    // without it, Mix comb-filters and Delta never nulls.
+    this.dryApL = new AllpassChain(this.xoverFreqs, this.sr);
+    this.dryApR = new AllpassChain(this.xoverFreqs, this.sr);
 
     // 5 band processors per channel
     this.bandProcessorsL = BAND_IDS.map(id => new BandProcessor(id, this.sr, this.detectionMethod));
     this.bandProcessorsR = BAND_IDS.map(id => new BandProcessor(id, this.sr, this.detectionMethod));
 
-    // Lookahead delay lines (per channel)
-    const lookaheadMs = this.params.lookahead ? 3 : 0;
-    const lookaheadSamples = Math.round(lookaheadMs * 0.001 * this.sr) || 1;
-    this.lookaheadL = new CircularBuffer(lookaheadSamples);
-    this.lookaheadR = new CircularBuffer(lookaheadSamples);
+    // Lookahead delay lines for the global dry path, matched to the per-band
+    // delay inside each BandProcessor.
     this.lookaheadEnabled = !!this.params.lookahead;
+    this.lookaheadSamples = this.lookaheadEnabled ? Math.round(LOOKAHEAD_MS * 0.001 * this.sr) : 0;
+    this.lookaheadL = new CircularBuffer(Math.max(this.lookaheadSamples, 1));
+    this.lookaheadR = new CircularBuffer(Math.max(this.lookaheadSamples, 1));
+    this._applyLookahead();
 
     // Soft limiter — per channel so L gain reduction does not couple R
     this.limiterL = new SoftLimiter();
@@ -752,17 +915,27 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     // Toggles
     if (params.softClip !== undefined) this.softClipEnabled = params.softClip;
     if (params.delta !== undefined) this.deltaEnabled = params.delta;
-    if (params.globalBypass !== undefined) this.globalBypass = !!params.globalBypass;
+    if (params.globalBypass !== undefined) {
+      const wasBypassed = this.globalBypass;
+      this.globalBypass = !!params.globalBypass;
+      // Detectors and gain smoothers stand still while bypassed, so coming
+      // back out of bypass with stale envelopes would apply whatever gain was
+      // frozen in. Start the bands from unity instead.
+      if (wasBypassed && !this.globalBypass && this.bandProcessorsL) {
+        this.bandProcessorsL.forEach(p => p.reset());
+        this.bandProcessorsR.forEach(p => p.reset());
+        this.crossoversL.forEach(c => c.reset());
+        this.crossoversR.forEach(c => c.reset());
+        this.bandApL.forEach(a => a.reset());
+        this.bandApR.forEach(a => a.reset());
+      }
+    }
 
     // Lookahead
     if (params.lookahead !== undefined) {
       const wasEnabled = this.lookaheadEnabled;
-      this.lookaheadEnabled = params.lookahead;
-      if (params.lookahead && !wasEnabled) {
-        const samples = Math.round(0.003 * this.sr);
-        this.lookaheadL.resize(samples);
-        this.lookaheadR.resize(samples);
-      }
+      this.lookaheadEnabled = !!params.lookahead;
+      if (this.lookaheadEnabled !== wasEnabled) this._applyLookahead();
     }
 
     // Detection speed
@@ -818,11 +991,36 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     }
   }
 
-  _setCrossoverFreqs(freqs) {
-    for (let i = 0; i < 4; i++) {
-      this.crossoversL[i].updateFrequency(freqs[i], this.sr);
-      this.crossoversR[i].updateFrequency(freqs[i], this.sr);
+  // Keep the per-band lookahead delay in step with the global dry delay.
+  // Both must be the same length or the bands and the dry signal drift apart.
+  _applyLookahead() {
+    const samples = this.lookaheadEnabled ? Math.round(LOOKAHEAD_MS * 0.001 * this.sr) : 0;
+    this.lookaheadSamples = samples;
+    this.lookaheadL.resize(Math.max(samples, 1));
+    this.lookaheadR.resize(Math.max(samples, 1));
+    if (!this.bandProcessorsL) return;
+    for (let i = 0; i < 5; i++) {
+      this.bandProcessorsL[i].setLookahead(samples);
+      this.bandProcessorsR[i].setLookahead(samples);
     }
+  }
+
+  _setCrossoverFreqs(freqs) {
+    const safe = sanitizeCrossoverFreqs(freqs, this.sr);
+    this.xoverFreqs = safe;
+    for (let i = 0; i < 4; i++) {
+      this.crossoversL[i].updateFrequency(safe[i], this.sr);
+      this.crossoversR[i].updateFrequency(safe[i], this.sr);
+    }
+    // Compensation allpasses must track the same frequencies, or the band
+    // sum stops being flat the moment the user drags a crossover point.
+    for (let i = 0; i < 5; i++) {
+      const laterFreqs = safe.slice(i + 1);
+      this.bandApL[i].setFrequencies(laterFreqs, this.sr);
+      this.bandApR[i].setFrequencies(laterFreqs, this.sr);
+    }
+    this.dryApL.setFrequencies(safe, this.sr);
+    this.dryApR.setFrequencies(safe, this.sr);
   }
 
   _meterReset() {
@@ -832,11 +1030,18 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     this.meterInSqAccL = 0; this.meterInSqAccR = 0;
     this.meterOutSqAccL = 0; this.meterOutSqAccR = 0;
     this.meterSampleCount = 0;
-    // Lowest gainSmooth observed across post window (1.0 = no GR, <1 = GR)
-    this.meterGrMin = 1.0;
-    this.meterBandGrMin = this.meterBandGrMin || new Float32Array(5);
-    for (let i = 0; i < 5; i++) this.meterBandGrMin[i] = 1.0;
+    // Largest gain *deviation* from unity across the post window, kept signed.
+    // A transient shaper set to boost attack spends its time above 1.0, so a
+    // reduction-only meter would sit dark through the plugin's main use case.
+    this.meterGainPeak = 1.0;
+    this.meterBandGainPeak = this.meterBandGainPeak || new Float32Array(5);
+    for (let i = 0; i < 5; i++) this.meterBandGainPeak[i] = 1.0;
     this.meterBlockCounter = 0;
+  }
+
+  // Keep whichever of the two is further from unity gain, in either direction.
+  static _furtherFromUnity(a, b) {
+    return Math.abs(Math.log(a)) >= Math.abs(Math.log(b)) ? a : b;
   }
 
   _reset() {
@@ -844,6 +1049,10 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
     this.crossoversR.forEach(c => c.reset());
     this.bandProcessorsL.forEach(p => p.reset());
     this.bandProcessorsR.forEach(p => p.reset());
+    this.bandApL.forEach(a => a.reset());
+    this.bandApR.forEach(a => a.reset());
+    this.dryApL.reset();
+    this.dryApR.reset();
     this.limiterL = new SoftLimiter();
     this.limiterR = new SoftLimiter();
     this._meterReset();
@@ -889,9 +1098,12 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       this.meterInSqAccL += sampleL * sampleL;
       this.meterInSqAccR += sampleR * sampleR;
 
-      // Dry signal (delayed if lookahead)
+      // Dry signal, delayed to match the lookahead the bands are running.
+      // Global bypass uses this untouched copy so A/B compares against the
+      // genuine input; Mix and Delta use the allpassed copy below, which is
+      // what the compensated band sum is phase-aligned to.
       let dryL, dryR;
-      if (this.lookaheadEnabled) {
+      if (this.lookaheadSamples > 0) {
         dryL = this.lookaheadL.readAndWrite(sampleL);
         dryR = this.lookaheadR.readAndWrite(sampleR);
       } else {
@@ -902,12 +1114,15 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       // Global bypass: dry through (lookahead-aligned to avoid click on toggle)
       if (this.globalBypass) {
         const outGainLin = dbToLinear(this.outputGainSmoother.next());
-        // Still advance smoothers consistently
+        // Still advance smoothers and the dry allpass so leaving bypass
+        // resumes from warm state rather than snapping.
         this.mixSmoother.next();
+        this.dryApL.process(dryL);
+        this.dryApR.process(dryR);
         const o0 = dryL * outGainLin;
         const o1 = dryR * outGainLin;
         outL[n] = o0;
-        outR[n] = o1;
+        if (outR !== outL) outR[n] = o1;
         const oAbsL = o0 >= 0 ? o0 : -o0;
         const oAbsR = o1 >= 0 ? o1 : -o1;
         if (oAbsL > this.meterOutPeakL) this.meterOutPeakL = oAbsL;
@@ -935,21 +1150,23 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
           this.captureSustainBuf.push(bp.lastSustainSignal || 0);
         }
 
+        // No crossover in this path, so no allpass compensation is involved —
+        // the raw dry is already phase-aligned with the wet.
         let finalL = wetL;
         let finalR = wetR;
         if (this.deltaEnabled) { finalL -= dryL; finalR -= dryR; }
-        if (this.softClipEnabled) {
-          finalL = this.limiterL.process(finalL);
-          finalR = this.limiterR.process(finalR);
-        }
         const mix = this.mixSmoother.next();
         finalL = mix * finalL + (1 - mix) * dryL;
         finalR = mix * finalR + (1 - mix) * dryR;
         const outGainLin = dbToLinear(this.outputGainSmoother.next());
-        const o0 = finalL * outGainLin;
-        const o1 = finalR * outGainLin;
+        let o0 = finalL * outGainLin;
+        let o1 = finalR * outGainLin;
+        if (this.softClipEnabled) {
+          o0 = this.limiterL.process(o0);
+          o1 = this.limiterR.process(o1);
+        }
         outL[n] = o0;
-        outR[n] = o1;
+        if (outR !== outL) outR[n] = o1;
         const oAbsL = o0 >= 0 ? o0 : -o0;
         const oAbsR = o1 >= 0 ? o1 : -o1;
         if (oAbsL > this.meterOutPeakL) this.meterOutPeakL = oAbsL;
@@ -976,47 +1193,61 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       bandsR[4] = remainR;
 
       // 3. Process each band
-      // NOTE on multiband sum-flat: the LR4 cascade above produces 5 bands
-      // whose linear sum is mathematically identical to the input (LR4 has
-      // |LP|+|HP|=1 in-phase at every frequency, so each cascaded split
-      // collapses back). With every band at default (attack=sustain=0,
-      // mix=100, gain=0dB) every band processor returns its input unchanged,
-      // so the wetL/wetR accumulator below equals sampleL/sampleR — the full
-      // spectrum is preserved no matter where the crossover points sit.
+      // NOTE on multiband sum-flat: the raw cascade above is NOT sum-flat.
+      // A single LR4 split has |LP| + |HP| = 1 in phase, but in a serial tree
+      // the low output of split i never sees splits i+1..3, so it arrives
+      // phase-shifted relative to the bands that did. Summing those bands
+      // as-is dips the response by up to ~1 dB near the crossover points even
+      // with every control neutral. The per-band AllpassChain applied below
+      // puts the skipped phase back; only then does the bank sum flat, at any
+      // crossover setting and with any combination of solo/bypass.
       let wetL = 0;
       let wetR = 0;
       for (let i = 0; i < 5; i++) {
         const bL = bandsL[i];
         const bR = bandsR[i];
-        let procL = bL;
-        let procR = bR;
+        let procL = 0;
+        let procR = 0;
         let bandActive = false;
 
-        // Solo/bypass logic
-        if (this.bypassState[i]) {
-          // Bypass: pass through unprocessed
-          wetL += bL;
-          wetR += bR;
-        } else if (anySoloed && !this.soloState[i]) {
-          // Another band is soloed and this one isn't: mute
-          // (still run through processor to keep state valid)
+        // Solo/bypass logic. Solo is checked FIRST: soloing one band has to
+        // silence every other band, including bypassed ones — otherwise
+        // bypassing a band makes it inaudible to solo but still audible in
+        // the mix, which is the opposite of what both controls promise.
+        if (anySoloed && !this.soloState[i]) {
+          // Muted by another band's solo. Still run the processor so its
+          // detector state and delay line stay aligned with the other bands.
           this.bandProcessorsL[i].processSample(bL);
           this.bandProcessorsR[i].processSample(bR);
+          procL = 0;
+          procR = 0;
+        } else if (this.bypassState[i]) {
+          // Bypass: unprocessed, but latency-matched to its neighbours.
+          procL = this.bandProcessorsL[i].processBypassed(bL);
+          procR = this.bandProcessorsR[i].processBypassed(bR);
         } else {
           procL = this.bandProcessorsL[i].processSample(bL);
           procR = this.bandProcessorsR[i].processSample(bR);
-          wetL += procL;
-          wetR += procR;
           bandActive = true;
         }
 
-        // Per-band GR tracking (read after processing — gainSmooth is the
-        // shaper's instantaneous linear gain; <1.0 means active reduction)
-        const gL = this.bandProcessorsL[i].gainSmooth;
-        const gR = this.bandProcessorsR[i].gainSmooth;
-        const gMin = gL < gR ? gL : gR;
-        if (gMin < this.meterBandGrMin[i]) this.meterBandGrMin[i] = gMin;
-        if (gMin < this.meterGrMin) this.meterGrMin = gMin;
+        // Allpass-compensate this band's contribution, then sum. Bypassed and
+        // muted bands go through the same chain so the bank stays flat
+        // whatever combination of solo/bypass the user has set.
+        wetL += this.bandApL[i].process(procL);
+        wetR += this.bandApR[i].process(procR);
+
+        // Per-band gain tracking. gainSmooth is the shaper's instantaneous
+        // linear gain: >1 is a transient boost, <1 a reduction. Track whichever
+        // is further from unity so the meter responds to both.
+        const bandIdle = !bandActive;
+        const gL = bandIdle ? 1.0 : this.bandProcessorsL[i].gainSmooth;
+        const gR = bandIdle ? 1.0 : this.bandProcessorsR[i].gainSmooth;
+        const g = TransientShaperProcessor._furtherFromUnity(gL, gR);
+        this.meterBandGainPeak[i] =
+          TransientShaperProcessor._furtherFromUnity(g, this.meterBandGainPeak[i]);
+        this.meterGainPeak =
+          TransientShaperProcessor._furtherFromUnity(g, this.meterGainPeak);
 
         // Accumulate peak for downsampled viz data — stereo max
         if (this.vizView) {
@@ -1032,8 +1263,10 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
           // toggles the global Delta view. Only meaningful when the band is
           // actively processed; bypass/mute → 0.
           if (bandActive) {
-            const dL = procL - bL;
-            const dR = procR - bR;
+            // Compare against the band's own lookahead-aligned input, not the
+            // raw one, or the delay alone would read as a full-scale delta.
+            const dL = procL - this.bandProcessorsL[i].lastAlignedInput;
+            const dR = procR - this.bandProcessorsR[i].lastAlignedInput;
             const adL = dL >= 0 ? dL : -dL;
             const adR = dR >= 0 ? dR : -dR;
             const absDelta = adL > adR ? adL : adR;
@@ -1061,29 +1294,36 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // 4. Soft limiter (per-channel state)
-      if (this.softClipEnabled) {
-        wetL = this.limiterL.process(wetL);
-        wetR = this.limiterR.process(wetR);
-      }
+      // 4. Phase-matched dry for Mix and Delta. The compensated band sum is
+      //    the input through AP(f0..f3), so the dry has to take the same
+      //    route: blending against the raw input would comb-filter, and Delta
+      //    would show the crossover's phase shift instead of the shaping.
+      const dryApValL = this.dryApL.process(dryL);
+      const dryApValR = this.dryApR.process(dryR);
 
       // 5. Delta mode (hear only processed difference)
       if (this.deltaEnabled) {
-        wetL = wetL - dryL;
-        wetR = wetR - dryR;
+        wetL = wetL - dryApValL;
+        wetR = wetR - dryApValR;
       }
 
       // 6. Wet/dry mix
       const mix = this.mixSmoother.next();
-      let finalL = mix * wetL + (1 - mix) * dryL;
-      let finalR = mix * wetR + (1 - mix) * dryR;
+      const finalL = mix * wetL + (1 - mix) * dryApValL;
+      const finalR = mix * wetR + (1 - mix) * dryApValR;
 
-      // 7. Output gain
+      // 7. Output gain, then the limiter last of all. Clipping is only
+      //    meaningful at the point the signal leaves the plugin, so a guard
+      //    that runs before mix and output gain cannot actually guard it.
       const outGainLin = dbToLinear(this.outputGainSmoother.next());
-      const o0 = finalL * outGainLin;
-      const o1 = finalR * outGainLin;
+      let o0 = finalL * outGainLin;
+      let o1 = finalR * outGainLin;
+      if (this.softClipEnabled) {
+        o0 = this.limiterL.process(o0);
+        o1 = this.limiterR.process(o1);
+      }
       outL[n] = o0;
-      outR[n] = o1;
+      if (outR !== outL) outR[n] = o1;
 
       // OUT meter accumulation
       const oAbsL = o0 >= 0 ? o0 : -o0;
@@ -1113,17 +1353,18 @@ class TransientShaperProcessor extends AudioWorkletProcessor {
       const inRmsR = Math.sqrt(this.meterInSqAccR / n);
       const outRmsL = Math.sqrt(this.meterOutSqAccL / n);
       const outRmsR = Math.sqrt(this.meterOutSqAccR / n);
-      const grDb = linearToDb(this.meterGrMin); // <=0 dB; more negative = more reduction
-      const bandGrDb = new Array(5);
-      for (let i = 0; i < 5; i++) bandGrDb[i] = linearToDb(this.meterBandGrMin[i]);
+      // Signed peak gain change: negative = reduction, positive = transient boost.
+      const gainDb = linearToDb(this.meterGainPeak);
+      const bandGainDb = new Array(5);
+      for (let i = 0; i < 5; i++) bandGainDb[i] = linearToDb(this.meterBandGainPeak[i]);
       this.port.postMessage({
         type: 'meters',
         inPeakL: this.meterInPeakL, inPeakR: this.meterInPeakR,
         inRmsL, inRmsR,
         outPeakL: this.meterOutPeakL, outPeakR: this.meterOutPeakR,
         outRmsL, outRmsR,
-        grDb,
-        bandGrDb,
+        gainDb,
+        bandGainDb,
       });
       this._meterReset();
     }

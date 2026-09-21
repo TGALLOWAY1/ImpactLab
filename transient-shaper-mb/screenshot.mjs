@@ -22,7 +22,11 @@ console.log(`Vite server ready on port ${port}`);
 // Launch headless Chromium
 const browser = await chromium.launch();
 const page = await browser.newPage();
-await page.setViewportSize({ width: 1160, height: 800 });
+// Must match sizes.pluginWidth / sizes.pluginHeight in src/styles/theme.js.
+// The plugin shell is a fixed-size element with overflow:hidden, so a smaller
+// viewport silently crops the band labels and the right meter panel out of
+// the capture rather than scaling them down.
+await page.setViewportSize({ width: 1400, height: 860 });
 await page.goto(`http://localhost:${port}`, { waitUntil: 'networkidle' });
 
 // Wait for canvas waveforms to animate
