@@ -11,8 +11,11 @@ const TOTAL_VIZ_FLOATS = NUM_BANDS * FLOATS_PER_BAND;
 const INITIAL_METERS = {
   inPeakL: 0, inPeakR: 0, inRmsL: 0, inRmsR: 0,
   outPeakL: 0, outPeakR: 0, outRmsL: 0, outRmsR: 0,
-  grDb: 0,
-  bandGrDb: [0, 0, 0, 0, 0],
+  // Signed peak gain change applied by the shaper: negative is reduction,
+  // positive is a transient boost. Not "gain reduction" — a transient shaper
+  // spends most of its time above unity.
+  gainDb: 0,
+  bandGainDb: [0, 0, 0, 0, 0],
 };
 
 function serializeState(state) {
@@ -37,8 +40,15 @@ export default function useAudioEngine(state) {
   const vizSabRef = useRef(null);
   const vizViewRef = useRef(null);
   const vizWritePositionsRef = useRef(new Array(NUM_BANDS).fill(0));
-  const metersRef = useRef({ ...INITIAL_METERS, bandGrDb: [...INITIAL_METERS.bandGrDb] });
+  const metersRef = useRef({ ...INITIAL_METERS, bandGainDb: [...INITIAL_METERS.bandGainDb] });
   const sourceNodeRef = useRef(null);
+
+  // `initialize` is deliberately stable (it must only ever build one context),
+  // so it cannot close over `state` directly — it would capture the very first
+  // render's value and ship defaults to the worklet no matter what the user had
+  // already dialled in before pressing the power button.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const [isRunning, setIsRunning] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -56,8 +66,10 @@ export default function useAudioEngine(state) {
       vizSabRef.current = vizSab;
       vizViewRef.current = new Float32Array(vizSab);
     } catch {
-      // SharedArrayBuffer not available (missing COOP/COEP headers)
-      // Viz will work via postMessage fallback
+      // SharedArrayBuffer unavailable (COOP/COEP headers missing). There is no
+      // postMessage fallback — the per-band waveforms simply stay blank and
+      // WaveformCanvas falls back to file/synthetic drawing. Audio is
+      // unaffected. See vite.config.js and vercel.json for the headers.
       vizSabRef.current = null;
       vizViewRef.current = null;
     }
@@ -69,7 +81,7 @@ export default function useAudioEngine(state) {
       numberOfOutputs: 1,
       outputChannelCount: [2],
       processorOptions: {
-        initialParams: serializeState(state),
+        initialParams: serializeState(stateRef.current),
         vizSharedBuffer: vizSab,
       },
     });
@@ -87,9 +99,9 @@ export default function useAudioEngine(state) {
         m.inRmsL = d.inRmsL; m.inRmsR = d.inRmsR;
         m.outPeakL = d.outPeakL; m.outPeakR = d.outPeakR;
         m.outRmsL = d.outRmsL; m.outRmsR = d.outRmsR;
-        m.grDb = d.grDb;
-        // d.bandGrDb is a plain array; copy in place to keep ref stable
-        for (let i = 0; i < 5; i++) m.bandGrDb[i] = d.bandGrDb[i];
+        m.gainDb = d.gainDb;
+        // d.bandGainDb is a plain array; copy in place to keep ref stable
+        for (let i = 0; i < 5; i++) m.bandGainDb[i] = d.bandGainDb[i];
       }
     };
 

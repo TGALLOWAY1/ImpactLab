@@ -30,8 +30,8 @@ export default function useMeters(metersRef, active = true) {
             inRmsL: m.inRmsL, inRmsR: m.inRmsR,
             outPeakL: m.outPeakL, outPeakR: m.outPeakR,
             outRmsL: m.outRmsL, outRmsR: m.outRmsR,
-            grDb: m.grDb,
-            bandGrDb: m.bandGrDb.slice(),
+            gainDb: m.gainDb,
+            bandGainDb: m.bandGainDb.slice(),
           });
         }
       }
@@ -56,9 +56,12 @@ export function linearToMeterHeight(linear, floorDb = -60) {
   return (db - floorDb) / -floorDb;
 }
 
-export function grDbToHeight(grDb, floorDb = -20) {
-  // grDb is <=0; more negative means more reduction. Map to 0..1.
-  if (!Number.isFinite(grDb) || grDb >= 0) return 0;
-  if (grDb <= floorDb) return 1;
-  return grDb / floorDb; // both negative → positive ratio
+// Magnitude of the shaper's gain change, normalized to 0..1 for meter height.
+// Signed either way: a transient shaper boosting attack is doing just as much
+// work as one cutting sustain, and both should read on the meter.
+export function gainDbToHeight(gainDb, rangeDb = 12) {
+  if (!Number.isFinite(gainDb)) return 0;
+  const magnitude = Math.abs(gainDb);
+  if (magnitude >= rangeDb) return 1;
+  return magnitude / rangeDb;
 }

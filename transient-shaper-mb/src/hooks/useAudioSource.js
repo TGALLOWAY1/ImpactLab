@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
+import { LOOKAHEAD_MS } from '../constants/dspMapping';
 
 function audioBufferToWav(buffer) {
   const numChannels = buffer.numberOfChannels;
@@ -52,6 +53,20 @@ function audioBufferToWav(buffer) {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
 
+// Drop `offset` samples from the head of a rendered buffer, keeping `length`
+// samples. Used to undo the plugin's own lookahead latency on export.
+function trimLeadingSamples(buffer, offset, length) {
+  const out = new AudioBuffer({
+    numberOfChannels: buffer.numberOfChannels,
+    length,
+    sampleRate: buffer.sampleRate,
+  });
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    out.copyToChannel(buffer.getChannelData(ch).subarray(offset, offset + length), ch);
+  }
+  return out;
+}
+
 // Analyze audio buffer to create downsampled peak waveform for visualization
 function analyzeWaveform(audioBuffer, samplesPerPixel = 512) {
   const channelData = audioBuffer.getChannelData(0); // Use first channel
@@ -84,18 +99,34 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
   const [isLoaded, setIsLoaded] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [waveformData, setWaveformData] = useState(null);
+  const [error, setError] = useState(null);
 
   // Load an audio file from a File object
   const loadFile = useCallback(async (file) => {
     const ctx = audioCtxRef.current;
-    if (!ctx) return;
+    if (!ctx) {
+      setError('Audio engine is not running yet — press the power button first.');
+      return;
+    }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    setError(null);
+    let audioBuffer;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    } catch (err) {
+      // decodeAudioData rejects on anything the browser can't decode. Without
+      // this the promise rejected unhandled and the UI just sat there looking
+      // like nothing had happened.
+      console.error('Audio decode failed:', err);
+      setError(`Could not decode "${file.name}". Try a WAV, MP3, FLAC or OGG file.`);
+      return;
+    }
+
     audioBufferRef.current = audioBuffer;
     setFileName(file.name);
     setIsLoaded(true);
-    
+
     // Analyze waveform for visualization
     const waveform = analyzeWaveform(audioBuffer);
     setWaveformData(waveform);
@@ -170,20 +201,26 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
     if (!audioBufferRef.current || !getStateForExport) return;
     
     setIsExporting(true);
-    
+    setError(null);
+
     try {
       const inputBuffer = audioBufferRef.current;
+      // Lookahead delays the whole chain. Render that many extra samples and
+      // drop them off the front below, so the exported file lines up with the
+      // source instead of arriving 3 ms late and losing its last 3 ms.
+      const state = getStateForExport();
+      const latencySamples = state.global.lookahead
+        ? Math.round((LOOKAHEAD_MS / 1000) * inputBuffer.sampleRate)
+        : 0;
       const offlineCtx = new OfflineAudioContext(
         inputBuffer.numberOfChannels,
-        inputBuffer.length,
+        inputBuffer.length + latencySamples,
         inputBuffer.sampleRate
       );
       
       // Load the worklet into offline context
       await offlineCtx.audioWorklet.addModule('/dsp/transient-shaper-worklet.js');
       
-      // Get current state for processing
-      const state = getStateForExport();
       const params = {
         inputGain: state.global.inputGain,
         outputGain: state.global.outputGain,
@@ -192,6 +229,9 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
         softClip: state.global.softClip,
         lookahead: state.global.lookahead,
         delta: state.global.delta,
+        // Export has to honour bypass too, or saving while bypassed silently
+        // writes a processed file that doesn't match what you were hearing.
+        globalBypass: state.global.globalBypass,
         crossoverFreqs: state.global.crossoverFreqs,
         detectionMethod: state.global.detectionMethod || 'dual-envelope',
         bands: state.bands,
@@ -211,7 +251,10 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
       source.start(0);
       
       const renderedBuffer = await offlineCtx.startRendering();
-      const wavBlob = audioBufferToWav(renderedBuffer);
+      const alignedBuffer = latencySamples > 0
+        ? trimLeadingSamples(renderedBuffer, latencySamples, inputBuffer.length)
+        : renderedBuffer;
+      const wavBlob = audioBufferToWav(alignedBuffer);
       
       // Download the file
       const url = URL.createObjectURL(wavBlob);
@@ -225,6 +268,7 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Export failed:', err);
+      setError(`Export failed: ${err.message}`);
     } finally {
       setIsExporting(false);
     }
@@ -241,5 +285,7 @@ export default function useAudioSource(audioCtxRef, connectSource, disconnectSou
     isExporting,
     fileName,
     waveformData,
+    error,
+    clearError: () => setError(null),
   };
 }

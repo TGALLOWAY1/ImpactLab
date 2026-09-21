@@ -6,13 +6,13 @@ import RotaryKnob from './ui/RotaryKnob';
 import VerticalSlider from './ui/VerticalSlider';
 import ToggleButton from './ui/ToggleButton';
 import WaveformCanvas from './WaveformCanvas';
-import useMeters, { grDbToHeight } from '../hooks/useMeters';
+import useMeters, { gainDbToHeight } from '../hooks/useMeters';
 
 export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispatch, getVizData, vizWritePositionsRef, metersRef, isRunning, waveformData, getPlaybackPosition, isPlaying, crossoverFreqs, showDelta }) {
   const setBandParam = (param, value) => dispatch({ type: SET_BAND_PARAM, bandId: band.id, param, value });
   const meters = useMeters(metersRef, isRunning);
-  const grDb = meters && meters.bandGrDb ? meters.bandGrDb[bandIndex] : 0;
-  const grIntensity = grDbToHeight(grDb, -6); // 0..1, full at -6 dB
+  const gainDb = meters && meters.bandGainDb ? meters.bandGainDb[bandIndex] : 0;
+  const gainIntensity = gainDbToHeight(gainDb, 6); // 0..1, full at ±6 dB
   const range = formatBandRange(bandIndex, crossoverFreqs);
 
   return (
@@ -50,14 +50,14 @@ export default function BandStrip({ band, bandIndex, bandState, isDimmed, dispat
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <div
-            title={`GR: ${grDb.toFixed(1)} dB`}
+            title={`Gain change: ${gainDb > 0 ? '+' : ''}${gainDb.toFixed(1)} dB`}
             style={{
               width: 8,
               height: 8,
               borderRadius: '50%',
               background: band.color,
-              opacity: 0.15 + grIntensity * 0.85,
-              boxShadow: grIntensity > 0.05 ? `0 0 6px ${band.color}` : 'none',
+              opacity: 0.15 + gainIntensity * 0.85,
+              boxShadow: gainIntensity > 0.05 ? `0 0 6px ${band.color}` : 'none',
               transition: 'opacity 50ms linear',
             }}
           />

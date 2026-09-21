@@ -69,7 +69,7 @@ export default function RotaryKnob({ value, min, max, label, color = '#fff', siz
 
   const resetValue = defaultValue !== undefined ? defaultValue : (isBipolar ? 0 : (min + max) / 2);
 
-  const { onMouseDown, onDoubleClick } = useKnobDrag({
+  const { onMouseDown } = useKnobDrag({
     value,
     min,
     max,
